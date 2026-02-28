@@ -1,0 +1,24 @@
+services:
+  db:
+    image: postgres:16
+    container_name: social_media_sentiments
+    environment:
+      POSTGRES_DB: realtime_social_media_sentiments
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: adminpassword
+    ports:
+      - "5435:5432"
+    volumes:
+      - pg_data:/home/postgres/pgdata/data
+    networks:
+      - realtime-social-media-sentiments-net
+    restart: unless-stopped
+
+
+
+networks:
+  realtime-social-media-sentiments-net:
+    driver: bridge
+
+volumes:
+  pg_data:
