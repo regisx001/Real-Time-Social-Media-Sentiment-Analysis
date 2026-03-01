@@ -5,81 +5,62 @@ from pyspark.ml.feature import (
     StopWordsRemover,
     CountVectorizer,
     IDF,
-    StringIndexer
+    StringIndexer,
+    IndexToString
 )
 from pyspark.ml.classification import LogisticRegression
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
+from pyspark.sql.functions import col, lower, regexp_replace, when
 import os
-from pyspark.ml.feature import IndexToString
-from pyspark.sql.functions import col, lower, regexp_replace
-from pyspark.sql.functions import regexp_replace, col, lower
 
 
 def main():
-    # 1. SparkSession (Driver Entry Point)
-    # .master("local[*]") \
-    spark = SparkSession.builder \
-        .appName("SentimentTrainingSparkML") \
+
+    spark = (
+        SparkSession.builder
+        .appName("SentimentTrainingSparkML")
         .getOrCreate()
+    )
 
-    # Enable Arrow for optimization if available (optional)
-    spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "true")
+    spark.sparkContext.setLogLevel("WARN")
 
-    # Define paths
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.abspath(os.path.join(base_dir, "../../"))
+    # ===============================
+    # PATHS (Docker shared volume)
+    # ===============================
 
-    # Check if data exists in /opt/spark/work-dir (Writable container environment)
-    work_dir = "/opt/spark/work-dir"
-    if os.path.exists(work_dir):
-        # Taking a guess that inside the container we might mount differently or the same
-        # Ideally the user would mount ./data:/opt/spark/work-dir/data
-        # But looking at previous code it expected cleaned.csv directly in work-dir.
-        # Let's assume for now we look for the file in a similar relative path or just flat.
+    base_path = "/opt/spark/work-dir/data"
+    train_path = f"{base_path}/twitter/twitter_training.csv"
+    validation_path = f"{base_path}/twitter/twitter_validation.csv"
+    model_output_path = f"{base_path}/models/spark_sentiment_model"
 
-        # If the user copies the whole data folder:
-        possible_path = f"{work_dir}/data/twitter/twitter_training.csv"
-        if os.path.exists(possible_path):
-            data_path = f"file://{possible_path}"
-            validation_path = f"file://{work_dir}/data/twitter/twitter_validation.csv"
-        else:
-            # Fallback if flat
-            data_path = f"file://{work_dir}/twitter_training.csv"
-            validation_path = f"file://{work_dir}/twitter_validation.csv"
-
-        model_output_path = f"{work_dir}/spark_sentiment_model"
-    else:
-        # Fallback to local development path
-        data_path = os.path.join(
-            project_root, "data/twitter/twitter_training.csv")
-        validation_path = os.path.join(
-            project_root, "data/twitter/twitter_validation.csv")
-        model_output_path = os.path.join(
-            project_root, "ml/spark_sentiment_model")
-
-    print(f"Loading training data from: {data_path}")
+    print(f"Loading training data from: {train_path}")
     print(f"Loading validation data from: {validation_path}")
 
-    # 2. Load Data (Distributed)
-    # The new dataset has no header and 4 columns: id, entity, sentiment, text
+    # ===============================
+    # LOAD TRAINING DATA
+    # ===============================
+
     df = spark.read.csv(
-        data_path,
+        train_path,
         header=False,
         inferSchema=True
     ).toDF("id", "entity", "sentiment", "text")
 
-    # Handling nulls immediately after load
-    # Matches the pipeline expectation: Rename 'sentiment' to 'target', 'text' to 'cleaned_text'
-    df = df.withColumnRenamed("sentiment", "target") \
-           .withColumnRenamed("text", "cleaned_text") \
-           .dropna(subset=["cleaned_text", "target"])
+    df = (
+        df.withColumnRenamed("sentiment", "target")
+          .withColumnRenamed("text", "cleaned_text")
+          .dropna(subset=["cleaned_text", "target"])
+    )
 
-    # Merge 'Irrelevant' into 'Neutral'
-    from pyspark.sql.functions import when
-    df = df.withColumn("target", when(
-        col("target") == "Irrelevant", "Neutral").otherwise(col("target")))
+    df = df.withColumn(
+        "target",
+        when(col("target") == "Irrelevant", "Neutral").otherwise(col("target"))
+    )
 
-    # Remove URLs, mentions, and non-alphanumeric characters
+    # ===============================
+    # CLEAN TEXT
+    # ===============================
+
     df = df.withColumn("cleaned_text", lower(col("cleaned_text")))
     df = df.withColumn("cleaned_text", regexp_replace(
         col("cleaned_text"), r"http\S+", ""))
@@ -90,22 +71,27 @@ def main():
     df = df.withColumn("cleaned_text", regexp_replace(
         col("cleaned_text"), r"\s+", " "))
 
-    # Load Validation Data
+    # ===============================
+    # LOAD VALIDATION DATA
+    # ===============================
+
     val_df = spark.read.csv(
         validation_path,
         header=False,
         inferSchema=True
     ).toDF("id", "entity", "sentiment", "text")
 
-    val_df = val_df.withColumnRenamed("sentiment", "target") \
-        .withColumnRenamed("text", "cleaned_text") \
-        .dropna(subset=["cleaned_text", "target"])
+    val_df = (
+        val_df.withColumnRenamed("sentiment", "target")
+              .withColumnRenamed("text", "cleaned_text")
+              .dropna(subset=["cleaned_text", "target"])
+    )
 
-    # Merge 'Irrelevant' into 'Neutral' for validation set too
-    val_df = val_df.withColumn("target", when(
-        col("target") == "Irrelevant", "Neutral").otherwise(col("target")))
+    val_df = val_df.withColumn(
+        "target",
+        when(col("target") == "Irrelevant", "Neutral").otherwise(col("target"))
+    )
 
-    # Apply same cleaning to validation set
     val_df = val_df.withColumn("cleaned_text", lower(col("cleaned_text")))
     val_df = val_df.withColumn("cleaned_text", regexp_replace(
         col("cleaned_text"), r"http\S+", ""))
@@ -116,28 +102,40 @@ def main():
     val_df = val_df.withColumn("cleaned_text", regexp_replace(
         col("cleaned_text"), r"\s+", " "))
 
-    # 3. Label Preparation
-    # Convert 'target' column to indexed labels
+    # ===============================
+    # LABEL INDEXING
+    # ===============================
+
     label_indexer = StringIndexer(
         inputCol="target",
         outputCol="label_indexed",
-        handleInvalid="skip"  # skip rows with unseen labels
+        handleInvalid="skip"
     )
 
-    # 4. Text Feature Pipeline (Spark-Native)
-    # Stage A: Tokenization
+    label_model = label_indexer.fit(df)
+    df = label_model.transform(df)
+    val_df = label_model.transform(val_df)
+
+    label_converter = IndexToString(
+        inputCol="prediction",
+        outputCol="predicted_label",
+        labels=label_model.labels
+    )
+
+    # ===============================
+    # FEATURE PIPELINE
+    # ===============================
+
     tokenizer = Tokenizer(
         inputCol="cleaned_text",
         outputCol="tokens"
     )
 
-    # Stage B: Stop Words Removal
     remover = StopWordsRemover(
         inputCol="tokens",
         outputCol="filtered_tokens"
     )
 
-    # Stage C: Count Vectorizer (Term Frequency)
     vectorizer = CountVectorizer(
         inputCol="filtered_tokens",
         outputCol="raw_features",
@@ -145,33 +143,16 @@ def main():
         minDF=5
     )
 
-    # Stage D: IDF (Inverse Document Frequency)
     idf = IDF(
         inputCol="raw_features",
         outputCol="features"
     )
 
-    # 5. Logistic Regression (Distributed Training)
     lr = LogisticRegression(
         featuresCol="features",
         labelCol="label_indexed",
         maxIter=20,
-        regParam=0.01,  # Added some regularization
-        elasticNetParam=0.0  # L2 penalty
-    )
-
-    # 6. Pipeline Construction
-    # Fit label indexer separately to get labels
-    label_model = label_indexer.fit(df)
-    df = label_model.transform(df)
-
-    # Also transform the validation set so it has 'label_indexed'
-    val_df = label_model.transform(val_df)
-
-    label_converter = IndexToString(
-        inputCol="prediction",
-        outputCol="predicted_label",
-        labels=label_model.labels
+        regParam=0.01
     )
 
     pipeline = Pipeline(stages=[
@@ -183,19 +164,19 @@ def main():
         label_converter
     ])
 
-    # 7. Train / Test Split
-    print("Using separate validation file for testing...")
-    train_df = df  # Use all of training data
-    test_df = val_df  # Use validation file for evaluation
+    # ===============================
+    # TRAIN
+    # ===============================
 
-    # Fit the pipeline
     print("Training model...")
-    model = pipeline.fit(train_df)
+    model = pipeline.fit(df)
     print("Model training complete.")
 
-    # 8. Evaluation
-    print("Evaluating model...")
-    predictions = model.transform(test_df)
+    # ===============================
+    # EVALUATE
+    # ===============================
+
+    predictions = model.transform(val_df)
 
     evaluator = MulticlassClassificationEvaluator(
         labelCol="label_indexed",
@@ -204,18 +185,20 @@ def main():
     )
 
     accuracy = evaluator.evaluate(predictions)
-    print(f"Test Accuracy: {accuracy:.4f}")
+    f1 = evaluator.setMetricName("f1").evaluate(predictions)
 
-    # Also print other metrics for completeness
-    f1_score = evaluator.setMetricName("f1").evaluate(predictions)
-    print(f"Test F1 Score: {f1_score:.4f}")
+    print(f"Validation Accuracy: {accuracy:.4f}")
+    print(f"Validation F1 Score: {f1:.4f}")
 
-    # 9. Save the Spark ML Model
-    print(f"Saving model to file:///opt/spark/work-dir/spark_sentiment_model ...")
-    model.write().overwrite().save("file:///opt/spark/work-dir/spark_sentiment_model")
+    # ===============================
+    # SAVE MODEL (CORRECT WAY)
+    # ===============================
+
+    print(f"Saving model to {model_output_path}")
+    model.write().overwrite().save(model_output_path)
+
     print("Model saved successfully.")
 
-    # 10. Stop Spark Cleanly
     spark.stop()
 
 

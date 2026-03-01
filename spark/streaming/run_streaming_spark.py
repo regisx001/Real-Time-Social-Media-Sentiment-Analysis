@@ -10,7 +10,7 @@ import random
 spark = (
     SparkSession.builder
     .appName("Kafka-PySpark-Streaming-MockSentiment")
-    # .master("local[*]")
+    .master("local[*]")
     .config("spark.shuffle.service.enabled", "false")
     .config("spark.dynamicAllocation.enabled", "false")
     .getOrCreate()
@@ -19,7 +19,7 @@ spark = (
 spark.sparkContext.setLogLevel("WARN")
 
 
-model_path = "/opt/spark/work-dir/spark_sentiment_model"
+model_path = "/opt/spark/work-dir/data/spark_sentiment_model"
 model = PipelineModel.load(model_path)
 
 print("✓ Model loaded successfully")

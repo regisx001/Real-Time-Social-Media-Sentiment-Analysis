@@ -52,7 +52,7 @@ services:
     networks:
       - realtime-social-media-sentiments-net
     volumes:
-    - ../data:/opt/data
+      - ./data:/opt/spark/work-dir/data
 
   spark-worker:
     image: apache/spark:3.5.1
@@ -67,7 +67,7 @@ services:
     networks:
       - realtime-social-media-sentiments-net
     volumes:
-    - ../data:/opt/data
+      - ./data:/opt/spark/work-dir/data
 
   spark-training:
     build:
@@ -81,7 +81,7 @@ services:
     networks:
       - realtime-social-media-sentiments-net
     volumes:
-      - ./data:/opt/spark/work-dir/data:ro
+      - ./data:/opt/spark/work-dir/data
 
   spark-streaming:
     build:
@@ -95,7 +95,9 @@ services:
       - broker
     networks:
       - realtime-social-media-sentiments-net
-    restart: on-failure
+    volumes:
+      - ./data:/opt/spark/work-dir/data
+    # restart: on-failure
 
 networks:
   realtime-social-media-sentiments-net:

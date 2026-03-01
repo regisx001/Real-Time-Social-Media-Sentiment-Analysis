@@ -18,6 +18,11 @@ WORKDIR /opt/spark/work-dir
 # Copy the streaming script
 COPY run_streaming_spark.py .
 
+# Give the spark user permission to write to ivy cache before running spark-submit
+USER root
+RUN mkdir -p /home/spark/.ivy2/cache /home/spark/.ivy2/jars /opt/spark/work-dir && chown -R spark:spark /home/spark /opt/spark/work-dir
+USER spark
+
 # We include the Kafka package to allow Spark Structured Streaming to read from Kafka natively
 ENTRYPOINT ["/opt/spark/bin/spark-submit", \
     "--packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1", \
