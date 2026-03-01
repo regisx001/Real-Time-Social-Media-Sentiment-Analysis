@@ -1,0 +1,67 @@
+package com.regisx001.core.services;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.regisx001.core.domain.dto.ProcessedTweetEvent;
+import com.regisx001.core.domain.entities.Tweet;
+import com.regisx001.core.repository.TweetRepository;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class TweetConsumer {
+
+    private final TweetRepository TweetRepository;
+
+    @KafkaListener(topics = "tweets.processed", groupId = "core-consumer")
+    @Transactional
+    public void consume(ProcessedTweetEvent event) {
+        log.info("Consumed processed tweet: " + event);
+        try {
+            Long id = Long.valueOf(event.tweetId());
+            Optional<Tweet> tweetOpt = TweetRepository.findById(id);
+            if (tweetOpt.isPresent()) {
+                Tweet tweet = tweetOpt.get();
+
+                Map<String, Object> processedData = tweet.getProcessedData();
+                if (processedData == null) {
+                    processedData = new HashMap<>();
+                }
+
+                processedData.put("sentiment", mapSentiment(event.sentiment()));
+                processedData.put("score", event.score());
+                tweet.setProcessedData(processedData);
+
+                TweetRepository.save(tweet);
+            } else {
+                log.error("Tweet not found with ID: " + id);
+            }
+        } catch (NumberFormatException e) {
+            log.error("Invalid tweet ID format: " + event.tweetId());
+
+        }
+    }
+
+    private String mapSentiment(String rawSentiment) {
+        if (rawSentiment == null) {
+            return "UNKNOWN";
+        }
+        String normalized = rawSentiment.trim();
+        return switch (normalized) {
+            case "Positive", "positive" -> "POSITIVE";
+            case "Negative", "negative" -> "NEGATIVE";
+            case "Neutral", "neutral" -> "NEUTRAL";
+            case "Irrelevant", "irrelevant" -> "NEUTRAL"; // Just in case model hasn't been retrained yet
+            default -> normalized.toUpperCase();
+        };
+    }
+}
