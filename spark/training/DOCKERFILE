@@ -1,0 +1,24 @@
+FROM apache/spark:3.5.1
+
+# Switch to root to install Python packages via pip
+USER root
+
+# Install dependencies like pandas, numpy, and any necessary ML libraries
+RUN pip3 install --no-cache-dir \
+    pandas \
+    numpy \
+    scikit-learn \
+    pyarrow
+
+# Switch back to the default spark user for security and compatibility
+USER spark
+
+WORKDIR /opt/spark/work-dir
+
+# Copy the training script
+COPY run_training_spark.py .
+
+# Run the spark-submit command
+ENTRYPOINT ["/opt/spark/bin/spark-submit", \
+    "--master", "spark://spark-master:7077", \
+    "run_training_spark.py"]

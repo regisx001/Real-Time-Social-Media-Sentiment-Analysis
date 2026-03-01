@@ -1,0 +1,25 @@
+FROM apache/spark:3.5.1
+
+# Switch to root to install Python packages via pip
+USER root
+
+# Install dependencies needed for streaming and data manipulation
+RUN pip3 install --no-cache-dir \
+    pandas \
+    numpy \
+    kafka-python \
+    pyarrow
+
+# Switch back to the default spark user for security and compatibility
+USER spark
+
+WORKDIR /opt/spark/work-dir
+
+# Copy the streaming script
+COPY run_streaming_spark.py .
+
+# We include the Kafka package to allow Spark Structured Streaming to read from Kafka natively
+ENTRYPOINT ["/opt/spark/bin/spark-submit", \
+    "--packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1", \
+    "--master", "spark://spark-master:7077", \
+    "run_streaming_spark.py"]

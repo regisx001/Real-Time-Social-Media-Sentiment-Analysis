@@ -41,9 +41,10 @@ services:
     image: apache/spark:3.5.1
     container_name: spark-master
     hostname: spark-master
-    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master -h 0.0.0.0
     environment:
       - SPARK_NO_DAEMONIZE=true
+      - SPARK_LOCAL_IP=0.0.0.0
     ports:
       - "8080:8080"
       - "7077:7077"
@@ -68,6 +69,33 @@ services:
     volumes:
     - ../data:/opt/data
 
+  spark-training:
+    build:
+      context: ./spark/training
+      dockerfile: DOCKERFILE
+    container_name: spark-training
+    depends_on:
+      - spark-master
+      - spark-worker
+      - broker
+    networks:
+      - realtime-social-media-sentiments-net
+    volumes:
+      - ./data:/opt/spark/work-dir/data:ro
+
+  spark-streaming:
+    build:
+      context: ./spark/streaming
+      dockerfile: DOCKERFILE
+    container_name: spark-streaming
+    depends_on:
+      - spark-master
+      - spark-worker
+      - spark-training
+      - broker
+    networks:
+      - realtime-social-media-sentiments-net
+    restart: on-failure
 
 networks:
   realtime-social-media-sentiments-net:
