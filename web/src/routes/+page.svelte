@@ -22,13 +22,32 @@
     Server,
     Activity as ActivityIcon,
     Cpu,
-    Clock,
     Box,
     Database,
     CircleCheck,
     AlertTriangle,
     Info,
   } from "@lucide/svelte";
+
+  import { serviceMap, connectionState, lastUpdated } from "$lib/stores/health";
+
+  // Helper: get status for a named service from the live store
+  function svcStatus(name: string): "UP" | "DOWN" | "UNKNOWN" {
+    const s = $serviceMap[name];
+    return s ? s.status : "UNKNOWN";
+  }
+  function svcLatency(name: string): string {
+    const s = $serviceMap[name];
+    return s?.latencyMs != null ? `${s.latencyMs} ms` : "";
+  }
+  function svcLabel(name: string): string {
+    const status = svcStatus(name);
+    return status === "UP"
+      ? "Operational"
+      : status === "DOWN"
+        ? "Down"
+        : "Checking…";
+  }
 
   // Dummy Chart Data
   const chartData = [
@@ -187,18 +206,31 @@
           <div
             class="flex items-center gap-2 border px-2.5 py-1 rounded-full bg-muted/50"
           >
-            <span class="relative flex h-2 w-2">
+            {#if $connectionState === "connected"}
+              <span class="relative flex h-2 w-2">
+                <span
+                  class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"
+                ></span>
+                <span
+                  class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"
+                ></span>
+              </span>
               <span
-                class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"
+                class="text-xs font-medium text-emerald-600 dark:text-emerald-400"
+                >Connected</span
+              >
+            {:else if $connectionState === "error"}
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"
               ></span>
+              <span class="text-xs font-medium text-red-500">Reconnecting…</span
+              >
+            {:else}
               <span
-                class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"
+                class="relative inline-flex rounded-full h-2 w-2 bg-amber-400 animate-pulse"
               ></span>
-            </span>
-            <span
-              class="text-xs font-medium text-emerald-600 dark:text-emerald-400"
-              >Connected</span
-            >
+              <span class="text-xs font-medium text-amber-500">Connecting…</span
+              >
+            {/if}
           </div>
         </nav>
       </div>
@@ -647,76 +679,47 @@
             <Server class="w-5 h-5" /> Infrastructure Status
           </div>
 
+          {#if $lastUpdated}
+            <p class="text-xs text-muted-foreground mb-4">
+              Last checked: {$lastUpdated.toLocaleTimeString()}
+            </p>
+          {/if}
+
           <div class="space-y-6 mb-8">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <ActivityIcon class="w-4 h-4 text-muted-foreground" />
-                <span class="text-sm font-medium">Apache Kafka</span>
+            {#each [{ label: "Apache Kafka", key: "Kafka", Icon: ActivityIcon }, { label: "Spark Master", key: "Spark", Icon: Cpu }, { label: "Spring Boot API", key: "SpringBoot", Icon: Box }, { label: "PostgreSQL 16", key: "PostgreSQL", Icon: Database }] as svc}
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <svelte:component
+                    this={svc.Icon}
+                    class="w-4 h-4 text-muted-foreground"
+                  />
+                  <div class="flex flex-col">
+                    <span class="text-sm font-medium">{svc.label}</span>
+                    {#if svcLatency(svc.key)}
+                      <span class="text-xs text-muted-foreground"
+                        >{svcLatency(svc.key)}</span
+                      >
+                    {/if}
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 text-sm">
+                  {#if svcStatus(svc.key) === "UP"}
+                    <span class="w-2.5 h-2.5 rounded-full bg-[var(--chart-2)]"
+                    ></span>
+                    <span class="text-muted-foreground">Operational</span>
+                  {:else if svcStatus(svc.key) === "DOWN"}
+                    <span class="w-2.5 h-2.5 rounded-full bg-destructive"
+                    ></span>
+                    <span class="text-destructive">Down</span>
+                  {:else}
+                    <span
+                      class="w-2.5 h-2.5 rounded-full bg-muted-foreground animate-pulse"
+                    ></span>
+                    <span class="text-muted-foreground">Checking…</span>
+                  {/if}
+                </div>
               </div>
-              <div
-                class="flex items-center gap-2 text-sm text-muted-foreground"
-              >
-                <span class="w-2.5 h-2.5 rounded-full bg-[var(--chart-2)]"
-                ></span>
-                Operational
-              </div>
-            </div>
-
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <Cpu class="w-4 h-4 text-muted-foreground" />
-                <span class="text-sm font-medium">Spark Streaming</span>
-              </div>
-              <div
-                class="flex items-center gap-2 text-sm text-muted-foreground"
-              >
-                <span class="w-2.5 h-2.5 rounded-full bg-[var(--chart-2)]"
-                ></span>
-                Operational
-              </div>
-            </div>
-
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <Clock class="w-4 h-4 text-muted-foreground" />
-                <span class="text-sm font-medium">Spark ML Batch</span>
-              </div>
-              <div
-                class="flex items-center gap-2 text-sm text-muted-foreground"
-              >
-                <span class="w-2.5 h-2.5 rounded-full bg-[var(--chart-2)]"
-                ></span>
-                Operational
-              </div>
-            </div>
-
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <Box class="h-4 w-4 text-muted-foreground" />
-                <span class="text-sm font-medium">Spring Boot API</span>
-              </div>
-              <div
-                class="flex items-center gap-2 text-sm text-muted-foreground"
-              >
-                <span class="w-2.5 h-2.5 rounded-full bg-[var(--chart-2)]"
-                ></span>
-                Operational
-              </div>
-            </div>
-
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <Database class="w-4 h-4 text-muted-foreground" />
-                <span class="text-sm font-medium">PostgreSQL 16</span>
-              </div>
-              <div
-                class="flex items-center gap-2 text-sm text-muted-foreground"
-              >
-                <span class="w-2.5 h-2.5 rounded-full bg-[var(--chart-2)]"
-                ></span>
-                Operational
-              </div>
-            </div>
+            {/each}
           </div>
 
           <Separator class="my-6" />
