@@ -2,7 +2,7 @@ import { writable, derived } from 'svelte/store';
 import { browser } from '$app/environment';
 
 // ---------------------------------------------------------------
-// Types (mirrors the Java DTOs)
+// Types (mirrors Java DTOs)
 // ---------------------------------------------------------------
 export interface ServiceHealth {
   service: string;
@@ -17,78 +17,160 @@ export interface HealthReport {
   services: ServiceHealth[];
 }
 
+export interface KafkaTopicInfo {
+  name: string;
+  partitions: number;
+  replicationFactor: number;
+}
+
+export interface KafkaMetrics {
+  status: 'UP' | 'DOWN';
+  latencyMs?: number;
+  message?: string;
+  brokerCount: number;
+  topicCount: number;
+  topics: KafkaTopicInfo[];
+}
+
+export interface SparkWorkerInfo {
+  id: string;
+  host: string;
+  port: number;
+  cores: number;
+  coresUsed: number;
+  memoryMb: number;
+  memoryUsedMb: number;
+  state: string;
+}
+
+export interface SparkMetrics {
+  status: 'UP' | 'DOWN';
+  latencyMs?: number;
+  message?: string;
+  masterUrl?: string;
+  aliveWorkers: number;
+  totalCores: number;
+  usedCores: number;
+  totalMemoryMb: number;
+  usedMemoryMb: number;
+  activeApps: number;
+  completedApps: number;
+  workers: SparkWorkerInfo[];
+}
+
+export interface PostgresMetrics {
+  status: 'UP' | 'DOWN';
+  latencyMs?: number;
+  message?: string;
+  version?: string;
+  activeConnections: number;
+  maxConnections: number;
+  dbSizeBytes: number;
+  dbSizeHuman?: string;
+  uptimeSeconds: number;
+}
+
+export interface DetailedHealthReport {
+  overall: 'UP' | 'DEGRADED';
+  timestamp: string;
+  postgres: PostgresMetrics;
+  kafka: KafkaMetrics;
+  spark: SparkMetrics;
+}
+
 type ConnectionState = 'connecting' | 'connected' | 'error' | 'closed';
 
 // ---------------------------------------------------------------
 // Internal writable stores
 // ---------------------------------------------------------------
 const _report = writable<HealthReport | null>(null);
+const _detailed = writable<DetailedHealthReport | null>(null);
 const _connectionState = writable<ConnectionState>('connecting');
 const _lastUpdated = writable<Date | null>(null);
 
 // ---------------------------------------------------------------
-// Public read-only derived stores
+// Public derived stores
 // ---------------------------------------------------------------
 export const healthReport = derived(_report, ($r) => $r);
+export const detailedReport = derived(_detailed, ($r) => $r);
 export const connectionState = derived(_connectionState, ($s) => $s);
 export const lastUpdated = derived(_lastUpdated, ($d) => $d);
 
-/** Map of service name → ServiceHealth for easy lookup in the template */
 export const serviceMap = derived(_report, ($r): Record<string, ServiceHealth> => {
   if (!$r) return {};
   return Object.fromEntries($r.services.map((s) => [s.service, s]));
 });
 
 // ---------------------------------------------------------------
-// SSE connection
+// SSE connections
 // ---------------------------------------------------------------
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8090';
-const SSE_URL = `${API_BASE}/api/health/stream`;
 
-let es: EventSource | null = null;
-let retryTimer: ReturnType<typeof setTimeout> | null = null;
-let retryDelay = 3_000; // starts at 3 s, caps at 30 s
+let simpleEs: EventSource | null = null;
+let detailEs: EventSource | null = null;
+let simpleRetry: ReturnType<typeof setTimeout> | null = null;
+let detailRetry: ReturnType<typeof setTimeout> | null = null;
+let simpleDelay = 3_000;
+let detailDelay = 3_000;
 
-function connect() {
+function connectSimple() {
   if (!browser) return;
-
   _connectionState.set('connecting');
-  es = new EventSource(SSE_URL);
+  simpleEs = new EventSource(`${API_BASE}/api/health/stream`);
 
-  es.addEventListener('health', (e: MessageEvent) => {
+  simpleEs.addEventListener('health', (e: MessageEvent) => {
     try {
-      const report: HealthReport = JSON.parse(e.data);
-      _report.set(report);
+      _report.set(JSON.parse(e.data));
       _lastUpdated.set(new Date());
       _connectionState.set('connected');
-      retryDelay = 3_000; // reset back-off on success
-    } catch {
-      console.error('[health-store] Failed to parse SSE payload', e.data);
-    }
+      simpleDelay = 3_000;
+    } catch { /* ignore parse errors */ }
   });
 
-  es.onerror = () => {
+  simpleEs.onerror = () => {
     _connectionState.set('error');
-    es?.close();
-    es = null;
-    // Exponential back-off, max 30 s
-    retryTimer = setTimeout(() => {
-      retryDelay = Math.min(retryDelay * 2, 30_000);
-      connect();
-    }, retryDelay);
+    simpleEs?.close();
+    simpleEs = null;
+    simpleRetry = setTimeout(() => {
+      simpleDelay = Math.min(simpleDelay * 2, 30_000);
+      connectSimple();
+    }, simpleDelay);
+  };
+}
+
+function connectDetails() {
+  if (!browser) return;
+  detailEs = new EventSource(`${API_BASE}/api/health/details/stream`);
+
+  detailEs.addEventListener('health-details', (e: MessageEvent) => {
+    try {
+      _detailed.set(JSON.parse(e.data));
+      detailDelay = 3_000;
+    } catch { /* ignore parse errors */ }
+  });
+
+  detailEs.onerror = () => {
+    detailEs?.close();
+    detailEs = null;
+    detailRetry = setTimeout(() => {
+      detailDelay = Math.min(detailDelay * 2, 30_000);
+      connectDetails();
+    }, detailDelay);
   };
 }
 
 function disconnect() {
-  if (retryTimer) clearTimeout(retryTimer);
-  es?.close();
-  es = null;
+  if (simpleRetry) clearTimeout(simpleRetry);
+  if (detailRetry) clearTimeout(detailRetry);
+  simpleEs?.close();
+  detailEs?.close();
+  simpleEs = detailEs = null;
   _connectionState.set('closed');
 }
 
-// Auto-connect when the module is first imported in the browser
 if (browser) {
-  connect();
+  connectSimple();
+  connectDetails();
 }
 
-export const healthStore = { connect, disconnect };
+export const healthStore = { disconnect };

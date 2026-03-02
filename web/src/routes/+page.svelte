@@ -199,6 +199,14 @@
       >
         <div class="w-full flex-1 md:w-auto md:flex-none"></div>
         <nav class="flex items-center gap-2">
+          <a
+            href="/health"
+            class="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors hidden sm:inline-flex items-center gap-1.5"
+          >
+            <Server class="h-3.5 w-3.5" />
+            Health
+          </a>
+          <Separator orientation="vertical" class="h-4 hidden sm:block" />
           <span
             class="text-sm font-medium text-muted-foreground hidden sm:inline-block"
             >Real-time Analysis</span
