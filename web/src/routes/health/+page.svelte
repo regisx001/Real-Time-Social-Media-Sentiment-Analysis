@@ -1,10 +1,13 @@
 <script lang="ts">
+  import * as Sidebar from "$lib/components/ui/sidebar/index.js";
   import * as Card from "$lib/components/ui/card/index.js";
-  import { Progress } from "$lib/components/ui/progress/index.js";
   import { Separator } from "$lib/components/ui/separator/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
   import * as Table from "$lib/components/ui/table/index.js";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
+  import * as Collapsible from "$lib/components/ui/collapsible/index.js";
+
+  import SentimentAppSidebar from "$lib/components/sentiment-app-sidebar.svelte";
 
   import {
     Activity,
@@ -16,14 +19,20 @@
     Users,
     Zap,
     Clock,
-    CheckCircle,
+    CheckCircle2,
     XCircle,
-    RefreshCw,
     Network,
     MemoryStick,
     BarChart3,
-    ArrowLeft,
+    ChevronDown,
+    RefreshCw,
+    Wifi,
+    WifiOff,
+    AlertCircle,
+    Circle,
   } from "@lucide/svelte";
+
+  import { TrendingUp, TrendingDown } from "@lucide/svelte";
 
   import {
     detailedReport,
@@ -31,9 +40,6 @@
     lastUpdated,
   } from "$lib/stores/health";
 
-  // ---------------------------------------------------------------
-  // Helpers
-  // ---------------------------------------------------------------
   function fmtBytes(bytes: number): string {
     if (!bytes) return "0 B";
     const units = ["B", "KB", "MB", "GB", "TB"];
@@ -46,7 +52,7 @@
     const d = Math.floor(seconds / 86400);
     const h = Math.floor((seconds % 86400) / 3600);
     const m = Math.floor((seconds % 3600) / 60);
-    const parts = [];
+    const parts: string[] = [];
     if (d) parts.push(`${d}d`);
     if (h) parts.push(`${h}h`);
     if (m) parts.push(`${m}m`);
@@ -71,458 +77,527 @@
         ? "destructive"
         : "secondary";
   }
+
+  function latencyColor(ms: number | undefined): string {
+    if (ms == null) return "text-muted-foreground";
+    if (ms < 10) return "text-emerald-500";
+    if (ms < 50) return "text-amber-500";
+    return "text-red-500";
+  }
+
+  function usageColor(p: number): string {
+    if (p < 60) return "bg-emerald-500";
+    if (p < 85) return "bg-amber-500";
+    return "bg-red-500";
+  }
+
+  let sparkOpen = $state(true);
+  let kafkaOpen = $state(true);
 </script>
 
-<div class="min-h-screen bg-background text-foreground">
-  <!-- Header -->
-  <header
-    class="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
-  >
-    <div class="flex h-14 items-center mx-auto max-w-7xl px-4 md:px-8 gap-4">
-      <a
-        href="/"
-        class="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <ArrowLeft class="h-4 w-4" />
-        Dashboard
-      </a>
-      <Separator orientation="vertical" class="h-5" />
-      <div class="flex items-center gap-2 font-semibold">
-        <Server class="h-5 w-5" />
-        Infrastructure Health
-      </div>
-      <div class="flex-1" />
-      <div class="flex items-center gap-3">
-        {#if $lastUpdated}
-          <span class="text-xs text-muted-foreground hidden sm:inline">
-            Updated {$lastUpdated.toLocaleTimeString()}
-          </span>
-        {/if}
-        <div
-          class="flex items-center gap-2 border px-2.5 py-1 rounded-full bg-muted/50"
-        >
+<Sidebar.Provider
+  style="--sidebar-width: calc(var(--spacing) * 72); --header-height: calc(var(--spacing) * 12);"
+>
+  <SentimentAppSidebar variant="inset" />
+  <Sidebar.Inset>
+
+    <!-- ══ Header ═══════════════════════════════════════════════ -->
+    <header
+      class="sticky top-0 z-20 flex h-(--header-height) shrink-0 items-center gap-2 border-b bg-background/95 backdrop-blur-sm transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)"
+    >
+      <div class="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
+        <Sidebar.Trigger class="-ms-1" />
+        <Separator orientation="vertical" class="mx-2 data-[orientation=vertical]:h-4" />
+
+        <div class="flex items-center gap-2.5">
+          <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 ring-1 ring-primary/20">
+            <Server class="h-3.5 w-3.5 text-primary" />
+          </div>
+          <div>
+            <h1 class="text-sm font-semibold leading-none tracking-tight">Infrastructure Health</h1>
+            <p class="text-[11px] text-muted-foreground leading-none mt-0.5">Real-time service monitoring</p>
+          </div>
+        </div>
+
+        <div class="ms-auto flex items-center gap-2">
+          {#if $lastUpdated}
+            <div class="hidden items-center gap-1.5 rounded-md border bg-muted/50 px-2.5 py-1 text-[11px] text-muted-foreground sm:flex">
+              <RefreshCw class="h-3 w-3" />
+              <span>Updated {$lastUpdated.toLocaleTimeString()}</span>
+            </div>
+          {/if}
+
           {#if $connectionState === "connected"}
-            <span class="relative flex h-2 w-2">
-              <span
-                class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"
-              ></span>
-              <span
-                class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"
-              ></span>
-            </span>
-            <span
-              class="text-xs font-medium text-emerald-600 dark:text-emerald-400"
-              >Live</span
-            >
+            <div class="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+              <span class="relative flex h-1.5 w-1.5">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+              </span>
+              Live
+            </div>
           {:else if $connectionState === "error"}
-            <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"
-            ></span>
-            <span class="text-xs font-medium text-red-500">Reconnecting…</span>
+            <div class="flex items-center gap-1.5 rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-medium text-red-500">
+              <WifiOff class="h-3 w-3" />
+              Reconnecting
+            </div>
           {:else}
-            <RefreshCw class="h-3 w-3 animate-spin text-muted-foreground" />
-            <span class="text-xs font-medium text-muted-foreground"
-              >Connecting…</span
-            >
+            <div class="flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+              <Wifi class="h-3 w-3 animate-pulse" />
+              Connecting
+            </div>
           {/if}
         </div>
+      </div>
+    </header>
+
+    <!-- ══ Body ══════════════════════════════════════════════════ -->
+    <div class="@container/main flex flex-1 flex-col overflow-auto">
+      <div class="flex flex-col gap-6 py-6 px-4 lg:px-6">
+
+        <!-- ── Loading state ──────────────────────────────────── -->
+        {#if !$detailedReport}
+          <div class="h-20 rounded-xl border bg-muted/30 animate-pulse"></div>
+          <div class="grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
+            {#each [1, 2, 3, 4] as _}
+              <div class="h-36 rounded-xl border bg-muted/30 animate-pulse"></div>
+            {/each}
+          </div>
+          <div class="grid grid-cols-1 gap-4 @xl/main:grid-cols-3">
+            {#each [1, 2, 3] as _}
+              <div class="h-72 rounded-xl border bg-muted/30 animate-pulse"></div>
+            {/each}
+          </div>
+
+        {:else}
+          {@const r = $detailedReport}
+
+          <!-- ── Status banner ───────────────────────────────── -->
+          <div
+            class="relative flex items-center justify-between overflow-hidden rounded-xl border px-5 py-4
+                   {r.overall === 'UP' ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-red-500/20 bg-red-500/5'}"
+          >
+            <div
+              class="pointer-events-none absolute inset-0 {r.overall === 'UP'
+                ? 'bg-gradient-to-r from-emerald-500/8 via-transparent to-transparent'
+                : 'bg-gradient-to-r from-red-500/8 via-transparent to-transparent'}"
+            ></div>
+
+            <div class="relative flex items-center gap-4">
+              <div
+                class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full ring-1
+                       {r.overall === 'UP'
+                  ? 'bg-emerald-500/15 ring-emerald-500/20'
+                  : 'bg-red-500/15 ring-red-500/20'}"
+              >
+                {#if r.overall === "UP"}
+                  <CheckCircle2 class="h-5 w-5 text-emerald-500" />
+                {:else}
+                  <AlertCircle class="h-5 w-5 text-red-500" />
+                {/if}
+              </div>
+              <div>
+                <p class="font-semibold leading-snug {r.overall === 'UP' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}">
+                  {r.overall === "UP" ? "All Systems Operational" : "System Degraded"}
+                </p>
+                <p class="mt-0.5 text-xs text-muted-foreground">
+                  {r.overall === "UP"
+                    ? "PostgreSQL · Kafka · Spark are healthy and responding normally."
+                    : "One or more services are experiencing issues — check cards below."}
+                </p>
+              </div>
+            </div>
+
+            <div class="relative hidden items-center gap-4 sm:flex">
+              {#each [
+                { label: "PostgreSQL", status: r.postgres.status },
+                { label: "Kafka", status: r.kafka.status },
+                { label: "Spark", status: r.spark.status },
+              ] as svc}
+                <div class="flex flex-col items-center gap-1">
+                  <Circle class="h-2.5 w-2.5 {svc.status === 'UP' ? 'fill-emerald-500 text-emerald-500' : 'fill-red-500 text-red-500'}" />
+                  <span class="text-[10px] font-medium text-muted-foreground">{svc.label}</span>
+                </div>
+              {/each}
+            </div>
+          </div>
+
+          <!-- ── KPI strip ───────────────────────────────────── -->
+          <div
+            class="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs @xl/main:grid-cols-2 @5xl/main:grid-cols-4"
+          >
+            <!-- Services UP -->
+            <Card.Root class="@container/card">
+              <Card.Header>
+                <Card.Description>Services UP</Card.Description>
+                <Card.Title class="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+                  {[r.postgres.status, r.kafka.status, r.spark.status].filter(s => s === "UP").length} / 3
+                </Card.Title>
+                <Card.Action>
+                  <Badge variant="outline">
+                    {#if [r.postgres.status, r.kafka.status, r.spark.status].every(s => s === "UP")}
+                      <TrendingUp class="size-4" />
+                      All healthy
+                    {:else}
+                      <TrendingDown class="size-4" />
+                      Degraded
+                    {/if}
+                  </Badge>
+                </Card.Action>
+              </Card.Header>
+              <Card.Footer class="flex-col items-start gap-1.5 text-sm">
+                <div class="line-clamp-1 flex gap-2 font-medium">
+                  {#if [r.postgres.status, r.kafka.status, r.spark.status].every(s => s === "UP")}
+                    All systems operational <TrendingUp class="size-4" />
+                  {:else}
+                    Service degradation detected <TrendingDown class="size-4" />
+                  {/if}
+                </div>
+                <div class="text-muted-foreground">PostgreSQL · Kafka · Spark</div>
+              </Card.Footer>
+            </Card.Root>
+
+            <!-- Avg Latency -->
+            <Card.Root class="@container/card">
+              <Card.Header>
+                <Card.Description>Avg Latency</Card.Description>
+                <Card.Title class="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+                  {#if r.postgres.latencyMs != null && r.kafka.latencyMs != null && r.spark.latencyMs != null}
+                    {Math.round((r.postgres.latencyMs + r.kafka.latencyMs + r.spark.latencyMs) / 3)} ms
+                  {:else}
+                    — ms
+                  {/if}
+                </Card.Title>
+                <Card.Action>
+                  <Badge variant="outline">
+                    <TrendingUp class="size-4" />
+                    Real-time
+                  </Badge>
+                </Card.Action>
+              </Card.Header>
+              <Card.Footer class="flex-col items-start gap-1.5 text-sm">
+                <div class="line-clamp-1 flex gap-2 font-medium">
+                  Averaged across all services <TrendingUp class="size-4" />
+                </div>
+                <div class="text-muted-foreground">PG · Kafka · Spark response times</div>
+              </Card.Footer>
+            </Card.Root>
+
+            <!-- Spark Workers -->
+            <Card.Root class="@container/card">
+              <Card.Header>
+                <Card.Description>Spark Workers</Card.Description>
+                <Card.Title class="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+                  {r.spark.status === "UP" ? r.spark.aliveWorkers : "—"}
+                  {#if r.spark.status === "UP"}
+                    <span class="text-base font-normal text-muted-foreground"> alive</span>
+                  {/if}
+                </Card.Title>
+                <Card.Action>
+                  <Badge variant="outline">
+                    {#if r.spark.status === "UP"}
+                      <TrendingUp class="size-4" />
+                      {pct(r.spark.usedCores, r.spark.totalCores)}% CPU
+                    {:else}
+                      <TrendingDown class="size-4" />
+                      Offline
+                    {/if}
+                  </Badge>
+                </Card.Action>
+              </Card.Header>
+              <Card.Footer class="flex-col items-start gap-1.5 text-sm">
+                <div class="line-clamp-1 flex gap-2 font-medium">
+                  {#if r.spark.status === "UP"}
+                    {r.spark.usedCores}/{r.spark.totalCores} cores · {r.spark.usedMemoryMb}/{r.spark.totalMemoryMb} MB
+                  {:else}
+                    Spark master unreachable <TrendingDown class="size-4" />
+                  {/if}
+                </div>
+                <div class="text-muted-foreground">Structured Streaming workers</div>
+              </Card.Footer>
+            </Card.Root>
+
+            <!-- Kafka Topics -->
+            <Card.Root class="@container/card">
+              <Card.Header>
+                <Card.Description>Kafka Topics</Card.Description>
+                <Card.Title class="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+                  {r.kafka.status === "UP" ? r.kafka.topicCount : "—"}
+                  {#if r.kafka.status === "UP"}
+                    <span class="text-base font-normal text-muted-foreground"> topics</span>
+                  {/if}
+                </Card.Title>
+                <Card.Action>
+                  <Badge variant="outline">
+                    {#if r.kafka.status === "UP"}
+                      <TrendingUp class="size-4" />
+                      {r.kafka.brokerCount} broker{r.kafka.brokerCount !== 1 ? "s" : ""}
+                    {:else}
+                      <TrendingDown class="size-4" />
+                      Offline
+                    {/if}
+                  </Badge>
+                </Card.Action>
+              </Card.Header>
+              <Card.Footer class="flex-col items-start gap-1.5 text-sm">
+                <div class="line-clamp-1 flex gap-2 font-medium">
+                  {#if r.kafka.status === "UP"}
+                    {r.kafka.brokerCount} broker{r.kafka.brokerCount !== 1 ? "s" : ""} active <TrendingUp class="size-4" />
+                  {:else}
+                    Kafka broker unreachable <TrendingDown class="size-4" />
+                  {/if}
+                </div>
+                <div class="text-muted-foreground">Message streaming pipeline</div>
+              </Card.Footer>
+            </Card.Root>
+          </div>
+
+          <!-- ── Service detail cards ────────────────────────── -->
+          <div class="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs @xl/main:grid-cols-3">
+
+            <!-- PostgreSQL ─────────────────────────────────── -->
+            <Card.Root class="@container/card flex flex-col">
+              <Card.Header>
+                <Card.Description class="flex items-center justify-between">
+                  <span class="flex items-center gap-1.5"><Database class="size-3.5" />PostgreSQL 16</span>
+                  <Badge variant={statusVariant(r.postgres.status)}>{r.postgres.status}</Badge>
+                </Card.Description>
+                <Card.Title class="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+                  {#if r.postgres.status === "UP"}{fmtLatency(r.postgres.latencyMs)}{:else}—{/if}
+                </Card.Title>
+                <Card.Action>
+                  <Badge variant="outline">
+                    {#if r.postgres.status === "UP"}<TrendingUp class="size-4" />Primary DB{:else}<TrendingDown class="size-4" />Offline{/if}
+                  </Badge>
+                </Card.Action>
+              </Card.Header>
+
+              <Card.Footer class="flex-col items-start gap-3 text-sm">
+                {#if r.postgres.status === "DOWN"}
+                  <div class="flex items-center gap-2 font-medium text-destructive">
+                    <XCircle class="size-4" /> Service unavailable
+                  </div>
+                  <p class="text-muted-foreground text-xs break-all">{r.postgres.message}</p>
+                {:else}
+                  <div class="w-full space-y-2">
+                    <div class="flex items-center justify-between text-xs">
+                      <span class="flex items-center gap-1.5 text-muted-foreground"><Users class="size-3" />Connections</span>
+                      <span class="font-mono font-medium">{r.postgres.activeConnections} / {r.postgres.maxConnections}</span>
+                    </div>
+                    <div class="relative h-1 w-full overflow-hidden rounded-full bg-secondary">
+                      <div class="h-full bg-foreground/70 transition-all duration-700" style="width:{pct(r.postgres.activeConnections, r.postgres.maxConnections)}%"></div>
+                    </div>
+                  </div>
+                  <Separator />
+                  <div class="flex w-full items-center justify-between gap-2 font-medium">
+                    <span class="flex items-center gap-1.5 text-muted-foreground text-xs"><HardDrive class="size-3" />DB Size</span>
+                    <span class="font-mono text-sm">{r.postgres.dbSizeHuman ?? fmtBytes(r.postgres.dbSizeBytes)}</span>
+                  </div>
+                  <div class="flex w-full items-center justify-between gap-2">
+                    <span class="flex items-center gap-1.5 text-muted-foreground text-xs"><Clock class="size-3" />Uptime</span>
+                    <span class="font-mono text-sm font-medium">{fmtUptime(r.postgres.uptimeSeconds)}</span>
+                  </div>
+                  {#if r.postgres.version}
+                    <p class="text-muted-foreground text-xs font-mono break-all leading-relaxed">{r.postgres.version}</p>
+                  {/if}
+                {/if}
+              </Card.Footer>
+            </Card.Root>
+
+            <!-- Apache Kafka ────────────────────────────────── -->
+            <Card.Root class="@container/card flex flex-col">
+              <Card.Header>
+                <Card.Description class="flex items-center justify-between">
+                  <span class="flex items-center gap-1.5"><Network class="size-3.5" />Apache Kafka</span>
+                  <Badge variant={statusVariant(r.kafka.status)}>{r.kafka.status}</Badge>
+                </Card.Description>
+                <Card.Title class="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+                  {#if r.kafka.status === "UP"}{fmtLatency(r.kafka.latencyMs)}{:else}—{/if}
+                </Card.Title>
+                <Card.Action>
+                  <Badge variant="outline">
+                    {#if r.kafka.status === "UP"}<TrendingUp class="size-4" />{r.kafka.brokerCount} broker{r.kafka.brokerCount !== 1 ? "s" : ""}{:else}<TrendingDown class="size-4" />Offline{/if}
+                  </Badge>
+                </Card.Action>
+              </Card.Header>
+
+              <Card.Footer class="flex-col items-start gap-3 text-sm">
+                {#if r.kafka.status === "DOWN"}
+                  <div class="flex items-center gap-2 font-medium text-destructive">
+                    <XCircle class="size-4" /> Service unavailable
+                  </div>
+                  <p class="text-muted-foreground text-xs break-all">{r.kafka.message}</p>
+                {:else}
+                  <div class="line-clamp-1 flex gap-2 font-medium">
+                    {r.kafka.brokerCount} broker{r.kafka.brokerCount !== 1 ? "s" : ""} · {r.kafka.topicCount} topics
+                  </div>
+                  <Separator />
+                  <div class="w-full space-y-1.5">
+                    {#each r.kafka.topics as t}
+                      <div class="flex items-center justify-between text-xs">
+                        <span class="font-mono truncate max-w-[140px] text-muted-foreground" title={t.name}>{t.name}</span>
+                        <span class="shrink-0 font-medium">{t.partitions}p · RF{t.replicationFactor}</span>
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+              </Card.Footer>
+            </Card.Root>
+
+            <!-- Apache Spark ────────────────────────────────── -->
+            <Card.Root class="@container/card flex flex-col">
+              <Card.Header>
+                <Card.Description class="flex items-center justify-between">
+                  <span class="flex items-center gap-1.5"><Cpu class="size-3.5" />Apache Spark</span>
+                  <Badge variant={statusVariant(r.spark.status)}>{r.spark.status}</Badge>
+                </Card.Description>
+                <Card.Title class="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+                  {#if r.spark.status === "UP"}{fmtLatency(r.spark.latencyMs)}{:else}—{/if}
+                </Card.Title>
+                <Card.Action>
+                  <Badge variant="outline">
+                    {#if r.spark.status === "UP"}<TrendingUp class="size-4" />{r.spark.aliveWorkers} worker{r.spark.aliveWorkers !== 1 ? "s" : ""}{:else}<TrendingDown class="size-4" />Offline{/if}
+                  </Badge>
+                </Card.Action>
+              </Card.Header>
+
+              <Card.Footer class="flex-col items-start gap-3 text-sm">
+                {#if r.spark.status === "DOWN"}
+                  <div class="flex items-center gap-2 font-medium text-destructive">
+                    <XCircle class="size-4" /> Service unavailable
+                  </div>
+                  <p class="text-muted-foreground text-xs break-all">{r.spark.message}</p>
+                {:else}
+                  <div class="line-clamp-1 flex gap-2 font-medium">
+                    {r.spark.activeApps} active · {r.spark.completedApps} completed
+                  </div>
+                  <Separator />
+                  <div class="w-full space-y-3">
+                    <div class="space-y-1.5">
+                      <div class="flex items-center justify-between text-xs">
+                        <span class="flex items-center gap-1.5 text-muted-foreground"><Cpu class="size-3" />CPU Cores</span>
+                        <span class="font-mono font-medium">{r.spark.usedCores} / {r.spark.totalCores}</span>
+                      </div>
+                      <div class="relative h-1 w-full overflow-hidden rounded-full bg-secondary">
+                        <div class="h-full bg-foreground/70 transition-all duration-700" style="width:{pct(r.spark.usedCores, r.spark.totalCores)}%"></div>
+                      </div>
+                    </div>
+                    <div class="space-y-1.5">
+                      <div class="flex items-center justify-between text-xs">
+                        <span class="flex items-center gap-1.5 text-muted-foreground"><MemoryStick class="size-3" />Memory</span>
+                        <span class="font-mono font-medium">{r.spark.usedMemoryMb} / {r.spark.totalMemoryMb} MB</span>
+                      </div>
+                      <div class="relative h-1 w-full overflow-hidden rounded-full bg-secondary">
+                        <div class="h-full bg-foreground/70 transition-all duration-700" style="width:{pct(r.spark.usedMemoryMb, r.spark.totalMemoryMb)}%"></div>
+                      </div>
+                    </div>
+                  </div>
+                {/if}
+              </Card.Footer>
+            </Card.Root>
+
+          </div>
+
+          <!-- ── Spark Workers table ─────────────────────────── -->
+          {#if r.spark.status === "UP" && r.spark.workers.length > 0}
+            <Collapsible.Root bind:open={sparkOpen}>
+              <Card.Root class="gap-0 overflow-hidden py-0">
+                <Collapsible.Trigger class="w-full text-left">
+                  <div class="flex items-center justify-between px-5 py-4 hover:bg-muted/30 transition-colors cursor-pointer">
+                    <div>
+                      <p class="text-sm font-semibold">Spark Workers</p>
+                      <p class="text-xs text-muted-foreground">{r.spark.aliveWorkers} worker{r.spark.aliveWorkers !== 1 ? "s" : ""} registered to master</p>
+                    </div>
+                    <ChevronDown class="h-4 w-4 text-muted-foreground transition-transform duration-200 {sparkOpen ? 'rotate-180' : ''}" />
+                  </div>
+                </Collapsible.Trigger>
+                <Collapsible.Content>
+                  <Separator />
+                  <ScrollArea class="w-full">
+                    <Table.Root>
+                      <Table.Header>
+                        <Table.Row class="bg-muted/20 hover:bg-muted/20">
+                          <Table.Head class="ps-5 text-xs font-medium">Host</Table.Head>
+                          <Table.Head class="text-xs font-medium text-right">Port</Table.Head>
+                          <Table.Head class="text-xs font-medium min-w-40">CPU Usage</Table.Head>
+                          <Table.Head class="text-xs font-medium min-w-44">Memory Usage</Table.Head>
+                          <Table.Head class="pe-5 text-xs font-medium text-right">State</Table.Head>
+                        </Table.Row>
+                      </Table.Header>
+                      <Table.Body>
+                        {#each r.spark.workers as w}
+                          <Table.Row class="hover:bg-muted/20">
+                            <Table.Cell class="ps-5 font-mono text-xs">{w.host}</Table.Cell>
+                            <Table.Cell class="text-right font-mono text-xs">{w.port}</Table.Cell>
+                            <Table.Cell class="text-xs">
+                              <div class="flex items-center gap-2">
+                                <div class="relative h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                                  <div class="h-full rounded-full transition-all {usageColor(pct(w.coresUsed, w.cores))}" style="width:{pct(w.coresUsed, w.cores)}%"></div>
+                                </div>
+                                <span class="w-14 shrink-0 text-right text-[11px] font-mono text-muted-foreground">{w.coresUsed}/{w.cores}</span>
+                              </div>
+                            </Table.Cell>
+                            <Table.Cell class="text-xs">
+                              <div class="flex items-center gap-2">
+                                <div class="relative h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                                  <div class="h-full rounded-full transition-all {usageColor(pct(w.memoryUsedMb, w.memoryMb))}" style="width:{pct(w.memoryUsedMb, w.memoryMb)}%"></div>
+                                </div>
+                                <span class="w-24 shrink-0 text-right text-[11px] font-mono text-muted-foreground">{w.memoryUsedMb}/{w.memoryMb} MB</span>
+                              </div>
+                            </Table.Cell>
+                            <Table.Cell class="pe-5 text-right">
+                              <Badge variant={w.state === "ALIVE" ? "default" : "destructive"} class="text-[11px] px-2 py-0">{w.state}</Badge>
+                            </Table.Cell>
+                          </Table.Row>
+                        {/each}
+                      </Table.Body>
+                    </Table.Root>
+                  </ScrollArea>
+                </Collapsible.Content>
+              </Card.Root>
+            </Collapsible.Root>
+          {/if}
+
+          <!-- ── Kafka Topics table ──────────────────────────── -->
+          {#if r.kafka.status === "UP" && r.kafka.topics.length > 0}
+            <Collapsible.Root bind:open={kafkaOpen}>
+              <Card.Root class="gap-0 overflow-hidden py-0">
+                <Collapsible.Trigger class="w-full text-left">
+                  <div class="flex items-center justify-between px-5 py-4 hover:bg-muted/30 transition-colors cursor-pointer">
+                    <div>
+                      <p class="text-sm font-semibold">Kafka Topics</p>
+                      <p class="text-xs text-muted-foreground">{r.kafka.topicCount} topics across {r.kafka.brokerCount} broker{r.kafka.brokerCount !== 1 ? "s" : ""}</p>
+                    </div>
+                    <ChevronDown class="h-4 w-4 text-muted-foreground transition-transform duration-200 {kafkaOpen ? 'rotate-180' : ''}" />
+                  </div>
+                </Collapsible.Trigger>
+                <Collapsible.Content>
+                  <Separator />
+                  <Table.Root>
+                    <Table.Header>
+                      <Table.Row class="bg-muted/20 hover:bg-muted/20">
+                        <Table.Head class="ps-5 text-xs font-medium">Topic Name</Table.Head>
+                        <Table.Head class="text-xs font-medium text-right">Partitions</Table.Head>
+                        <Table.Head class="pe-5 text-xs font-medium text-right">Replication Factor</Table.Head>
+                      </Table.Row>
+                    </Table.Header>
+                    <Table.Body>
+                      {#each r.kafka.topics as t}
+                        <Table.Row class="hover:bg-muted/20">
+                          <Table.Cell class="ps-5 font-mono text-xs font-medium">{t.name}</Table.Cell>
+                          <Table.Cell class="text-right text-xs tabular-nums">{t.partitions}</Table.Cell>
+                          <Table.Cell class="pe-5 text-right text-xs tabular-nums">{t.replicationFactor}</Table.Cell>
+                        </Table.Row>
+                      {/each}
+                    </Table.Body>
+                  </Table.Root>
+                </Collapsible.Content>
+              </Card.Root>
+            </Collapsible.Root>
+          {/if}
+
+        {/if}
       </div>
     </div>
-  </header>
 
-  <main class="mx-auto max-w-7xl px-4 md:px-8 py-8 space-y-8">
-    {#if !$detailedReport}
-      <!-- Loading skeleton -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {#each [1, 2, 3] as _}
-          <Card.Root class="animate-pulse">
-            <Card.Header
-              ><div class="h-5 w-32 bg-muted rounded"></div></Card.Header
-            >
-            <Card.Content class="space-y-3">
-              <div class="h-4 w-full bg-muted rounded"></div>
-              <div class="h-4 w-3/4 bg-muted rounded"></div>
-              <div class="h-4 w-1/2 bg-muted rounded"></div>
-            </Card.Content>
-          </Card.Root>
-        {/each}
-      </div>
-    {:else}
-      {@const r = $detailedReport}
-
-      <!-- ─── Overall Status Banner ─────────────────────────────── -->
-      <div
-        class="flex items-center justify-between rounded-lg border px-5 py-4
-               {r.overall === 'UP'
-          ? 'bg-emerald-500/5 border-emerald-500/20'
-          : 'bg-destructive/5 border-destructive/20'}"
-      >
-        <div class="flex items-center gap-3">
-          {#if r.overall === "UP"}
-            <CheckCircle class="h-6 w-6 text-emerald-500" />
-            <div>
-              <p class="font-semibold text-emerald-600 dark:text-emerald-400">
-                All Systems Operational
-              </p>
-              <p class="text-xs text-muted-foreground">
-                Every service is healthy and responding normally.
-              </p>
-            </div>
-          {:else}
-            <XCircle class="h-6 w-6 text-destructive" />
-            <div>
-              <p class="font-semibold text-destructive">System Degraded</p>
-              <p class="text-xs text-muted-foreground">
-                One or more services are experiencing issues.
-              </p>
-            </div>
-          {/if}
-        </div>
-        <Badge variant={statusVariant(r.overall)} class="text-sm px-3 py-1"
-          >{r.overall}</Badge
-        >
-      </div>
-
-      <!-- ─── Three service cards (top row) ─────────────────────── -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <!-- PostgreSQL Card -->
-        <Card.Root class="flex flex-col">
-          <Card.Header class="flex flex-row items-center justify-between pb-3">
-            <div class="flex items-center gap-2">
-              <Database class="h-5 w-5 text-muted-foreground" />
-              <Card.Title class="text-base">PostgreSQL 16</Card.Title>
-            </div>
-            <Badge variant={statusVariant(r.postgres.status)}
-              >{r.postgres.status}</Badge
-            >
-          </Card.Header>
-          <Card.Content class="flex-1 space-y-4 text-sm">
-            {#if r.postgres.status === "DOWN"}
-              <p class="text-destructive text-xs break-all">
-                {r.postgres.message}
-              </p>
-            {:else}
-              <!-- Latency -->
-              <div class="flex justify-between">
-                <span class="text-muted-foreground flex items-center gap-1.5"
-                  ><Zap class="h-3.5 w-3.5" /> Latency</span
-                >
-                <span class="font-mono font-medium"
-                  >{fmtLatency(r.postgres.latencyMs)}</span
-                >
-              </div>
-              <!-- Connections -->
-              <div class="space-y-1.5">
-                <div class="flex justify-between">
-                  <span class="text-muted-foreground flex items-center gap-1.5"
-                    ><Users class="h-3.5 w-3.5" /> Connections</span
-                  >
-                  <span class="font-mono font-medium"
-                    >{r.postgres.activeConnections} / {r.postgres
-                      .maxConnections}</span
-                  >
-                </div>
-                <Progress
-                  value={pct(
-                    r.postgres.activeConnections,
-                    r.postgres.maxConnections,
-                  )}
-                  class="h-1.5"
-                />
-              </div>
-              <!-- DB Size -->
-              <div class="flex justify-between">
-                <span class="text-muted-foreground flex items-center gap-1.5"
-                  ><HardDrive class="h-3.5 w-3.5" /> DB Size</span
-                >
-                <span class="font-mono font-medium"
-                  >{r.postgres.dbSizeHuman ??
-                    fmtBytes(r.postgres.dbSizeBytes)}</span
-                >
-              </div>
-              <!-- Uptime -->
-              <div class="flex justify-between">
-                <span class="text-muted-foreground flex items-center gap-1.5"
-                  ><Clock class="h-3.5 w-3.5" /> Uptime</span
-                >
-                <span class="font-mono font-medium"
-                  >{fmtUptime(r.postgres.uptimeSeconds)}</span
-                >
-              </div>
-              <Separator />
-              <!-- Version -->
-              <p
-                class="text-xs text-muted-foreground break-all leading-relaxed"
-              >
-                {r.postgres.version ?? "—"}
-              </p>
-            {/if}
-          </Card.Content>
-        </Card.Root>
-
-        <!-- Kafka Card -->
-        <Card.Root class="flex flex-col">
-          <Card.Header class="flex flex-row items-center justify-between pb-3">
-            <div class="flex items-center gap-2">
-              <Network class="h-5 w-5 text-muted-foreground" />
-              <Card.Title class="text-base">Apache Kafka</Card.Title>
-            </div>
-            <Badge variant={statusVariant(r.kafka.status)}
-              >{r.kafka.status}</Badge
-            >
-          </Card.Header>
-          <Card.Content class="flex-1 space-y-4 text-sm">
-            {#if r.kafka.status === "DOWN"}
-              <p class="text-destructive text-xs break-all">
-                {r.kafka.message}
-              </p>
-            {:else}
-              <div class="flex justify-between">
-                <span class="text-muted-foreground flex items-center gap-1.5"
-                  ><Zap class="h-3.5 w-3.5" /> Latency</span
-                >
-                <span class="font-mono font-medium"
-                  >{fmtLatency(r.kafka.latencyMs)}</span
-                >
-              </div>
-              <div class="flex justify-between">
-                <span class="text-muted-foreground flex items-center gap-1.5"
-                  ><Server class="h-3.5 w-3.5" /> Brokers</span
-                >
-                <span class="font-mono font-medium">{r.kafka.brokerCount}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-muted-foreground flex items-center gap-1.5"
-                  ><Layers class="h-3.5 w-3.5" /> Topics</span
-                >
-                <span class="font-mono font-medium">{r.kafka.topicCount}</span>
-              </div>
-              <Separator />
-              <!-- Topics table -->
-              <p
-                class="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
-              >
-                Topic Details
-              </p>
-              <Table.Root>
-                <Table.Header>
-                  <Table.Row>
-                    <Table.Head class="text-xs">Name</Table.Head>
-                    <Table.Head class="text-xs text-right"
-                      >Partitions</Table.Head
-                    >
-                    <Table.Head class="text-xs text-right">RF</Table.Head>
-                  </Table.Row>
-                </Table.Header>
-                <Table.Body>
-                  {#each r.kafka.topics as t}
-                    <Table.Row>
-                      <Table.Cell class="font-mono text-xs">{t.name}</Table.Cell
-                      >
-                      <Table.Cell class="text-right text-xs"
-                        >{t.partitions}</Table.Cell
-                      >
-                      <Table.Cell class="text-right text-xs"
-                        >{t.replicationFactor}</Table.Cell
-                      >
-                    </Table.Row>
-                  {/each}
-                </Table.Body>
-              </Table.Root>
-            {/if}
-          </Card.Content>
-        </Card.Root>
-
-        <!-- Spark Card -->
-        <Card.Root class="flex flex-col">
-          <Card.Header class="flex flex-row items-center justify-between pb-3">
-            <div class="flex items-center gap-2">
-              <Cpu class="h-5 w-5 text-muted-foreground" />
-              <Card.Title class="text-base">Apache Spark</Card.Title>
-            </div>
-            <Badge variant={statusVariant(r.spark.status)}
-              >{r.spark.status}</Badge
-            >
-          </Card.Header>
-          <Card.Content class="flex-1 space-y-4 text-sm">
-            {#if r.spark.status === "DOWN"}
-              <p class="text-destructive text-xs break-all">
-                {r.spark.message}
-              </p>
-            {:else}
-              <div class="flex justify-between">
-                <span class="text-muted-foreground flex items-center gap-1.5"
-                  ><Zap class="h-3.5 w-3.5" /> Latency</span
-                >
-                <span class="font-mono font-medium"
-                  >{fmtLatency(r.spark.latencyMs)}</span
-                >
-              </div>
-              <div class="flex justify-between">
-                <span class="text-muted-foreground flex items-center gap-1.5"
-                  ><Server class="h-3.5 w-3.5" /> Workers</span
-                >
-                <span class="font-mono font-medium">{r.spark.aliveWorkers}</span
-                >
-              </div>
-              <!-- CPU -->
-              <div class="space-y-1.5">
-                <div class="flex justify-between">
-                  <span class="text-muted-foreground flex items-center gap-1.5"
-                    ><Cpu class="h-3.5 w-3.5" /> CPU Cores</span
-                  >
-                  <span class="font-mono font-medium"
-                    >{r.spark.usedCores} / {r.spark.totalCores}</span
-                  >
-                </div>
-                <Progress
-                  value={pct(r.spark.usedCores, r.spark.totalCores)}
-                  class="h-1.5"
-                />
-              </div>
-              <!-- Memory -->
-              <div class="space-y-1.5">
-                <div class="flex justify-between">
-                  <span class="text-muted-foreground flex items-center gap-1.5"
-                    ><MemoryStick class="h-3.5 w-3.5" /> Memory</span
-                  >
-                  <span class="font-mono font-medium"
-                    >{r.spark.usedMemoryMb} / {r.spark.totalMemoryMb} MB</span
-                  >
-                </div>
-                <Progress
-                  value={pct(r.spark.usedMemoryMb, r.spark.totalMemoryMb)}
-                  class="h-1.5"
-                />
-              </div>
-              <div class="flex justify-between">
-                <span class="text-muted-foreground flex items-center gap-1.5"
-                  ><BarChart3 class="h-3.5 w-3.5" /> Active Apps</span
-                >
-                <span class="font-mono font-medium">{r.spark.activeApps}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-muted-foreground flex items-center gap-1.5"
-                  ><Activity class="h-3.5 w-3.5" /> Completed Apps</span
-                >
-                <span class="font-mono font-medium"
-                  >{r.spark.completedApps}</span
-                >
-              </div>
-            {/if}
-          </Card.Content>
-        </Card.Root>
-      </div>
-
-      <!-- ─── Spark Workers detail ────────────────────────────────── -->
-      {#if r.spark.status === "UP" && r.spark.workers.length > 0}
-        <Card.Root>
-          <Card.Header>
-            <Card.Title class="flex items-center gap-2">
-              <Cpu class="h-5 w-5 text-muted-foreground" /> Spark Workers
-            </Card.Title>
-            <Card.Description
-              >{r.spark.aliveWorkers} worker{r.spark.aliveWorkers !== 1
-                ? "s"
-                : ""} registered to master</Card.Description
-            >
-          </Card.Header>
-          <Card.Content class="p-0">
-            <ScrollArea class="w-full">
-              <Table.Root>
-                <Table.Header>
-                  <Table.Row>
-                    <Table.Head>Host</Table.Head>
-                    <Table.Head class="text-right">Port</Table.Head>
-                    <Table.Head class="text-right">Cores Used</Table.Head>
-                    <Table.Head>CPU</Table.Head>
-                    <Table.Head class="text-right">Mem Used (MB)</Table.Head>
-                    <Table.Head>Memory</Table.Head>
-                    <Table.Head class="text-right">State</Table.Head>
-                  </Table.Row>
-                </Table.Header>
-                <Table.Body>
-                  {#each r.spark.workers as w}
-                    <Table.Row>
-                      <Table.Cell class="font-mono text-sm">{w.host}</Table.Cell
-                      >
-                      <Table.Cell class="text-right font-mono text-sm"
-                        >{w.port}</Table.Cell
-                      >
-                      <Table.Cell class="text-right font-mono text-sm"
-                        >{w.coresUsed} / {w.cores}</Table.Cell
-                      >
-                      <Table.Cell class="min-w-24">
-                        <Progress
-                          value={pct(w.coresUsed, w.cores)}
-                          class="h-1.5"
-                        />
-                      </Table.Cell>
-                      <Table.Cell class="text-right font-mono text-sm"
-                        >{w.memoryUsedMb} / {w.memoryMb}</Table.Cell
-                      >
-                      <Table.Cell class="min-w-24">
-                        <Progress
-                          value={pct(w.memoryUsedMb, w.memoryMb)}
-                          class="h-1.5"
-                        />
-                      </Table.Cell>
-                      <Table.Cell class="text-right">
-                        <Badge
-                          variant={w.state === "ALIVE"
-                            ? "default"
-                            : "destructive"}
-                          class="text-xs"
-                        >
-                          {w.state}
-                        </Badge>
-                      </Table.Cell>
-                    </Table.Row>
-                  {/each}
-                </Table.Body>
-              </Table.Root>
-            </ScrollArea>
-          </Card.Content>
-        </Card.Root>
-      {/if}
-
-      <!-- ─── Kafka topics detail (full list) ───────────────────── -->
-      {#if r.kafka.status === "UP" && r.kafka.topics.length > 0}
-        <Card.Root>
-          <Card.Header>
-            <Card.Title class="flex items-center gap-2">
-              <Network class="h-5 w-5 text-muted-foreground" /> Kafka Topics
-            </Card.Title>
-            <Card.Description
-              >{r.kafka.topicCount} topics across {r.kafka.brokerCount} broker{r
-                .kafka.brokerCount !== 1
-                ? "s"
-                : ""}</Card.Description
-            >
-          </Card.Header>
-          <Card.Content class="p-0">
-            <Table.Root>
-              <Table.Header>
-                <Table.Row>
-                  <Table.Head>Topic Name</Table.Head>
-                  <Table.Head class="text-right">Partitions</Table.Head>
-                  <Table.Head class="text-right">Replication Factor</Table.Head>
-                </Table.Row>
-              </Table.Header>
-              <Table.Body>
-                {#each r.kafka.topics as t}
-                  <Table.Row>
-                    <Table.Cell class="font-mono">{t.name}</Table.Cell>
-                    <Table.Cell class="text-right">{t.partitions}</Table.Cell>
-                    <Table.Cell class="text-right"
-                      >{t.replicationFactor}</Table.Cell
-                    >
-                  </Table.Row>
-                {/each}
-              </Table.Body>
-            </Table.Root>
-          </Card.Content>
-        </Card.Root>
-      {/if}
-    {/if}
-  </main>
-</div>
+  </Sidebar.Inset>
+</Sidebar.Provider>

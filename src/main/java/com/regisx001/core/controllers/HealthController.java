@@ -26,12 +26,12 @@ public class HealthController {
     private final HealthCheckService healthCheckService;
 
     // ---------------------------------------------------------------
-    // SSE – simple health stream (every 15 s)
+    // SSE – simple health stream (every 3 s)
     // GET /api/health/stream
     // ---------------------------------------------------------------
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<HealthReport>> healthStream() {
-        return Flux.interval(Duration.ZERO, Duration.ofSeconds(15))
+        return Flux.interval(Duration.ZERO, Duration.ofSeconds(3))
                 .map(seq -> ServerSentEvent.<HealthReport>builder()
                         .id(String.valueOf(seq))
                         .event("health")
@@ -40,12 +40,12 @@ public class HealthController {
     }
 
     // ---------------------------------------------------------------
-    // SSE – detailed metrics stream (every 15 s)
+    // SSE – detailed metrics stream (every 3 s)
     // GET /api/health/details/stream
     // ---------------------------------------------------------------
     @GetMapping(value = "/details/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<DetailedHealthReport>> detailsStream() {
-        return Flux.interval(Duration.ZERO, Duration.ofSeconds(15))
+        return Flux.interval(Duration.ZERO, Duration.ofSeconds(3))
                 .map(seq -> ServerSentEvent.<DetailedHealthReport>builder()
                         .id(String.valueOf(seq))
                         .event("health-details")
