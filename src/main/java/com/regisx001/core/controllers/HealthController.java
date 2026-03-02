@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.regisx001.core.domain.dto.DetailedHealthReport;
 import com.regisx001.core.domain.dto.HealthReport;
 import com.regisx001.core.domain.dto.ServiceHealth;
 import com.regisx001.core.services.HealthCheckService;
@@ -25,51 +26,59 @@ public class HealthController {
     private final HealthCheckService healthCheckService;
 
     // ---------------------------------------------------------------
-    // SSE stream – pushes a full HealthReport every 15 seconds
+    // SSE – simple health stream (every 15 s)
     // GET /api/health/stream
     // ---------------------------------------------------------------
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<HealthReport>> healthStream() {
-        return Flux.interval(Duration.ZERO, Duration.ofSeconds(3))
-                .map(seq -> {
-                    HealthReport report = buildReport();
-                    return ServerSentEvent.<HealthReport>builder()
-                            .id(String.valueOf(seq))
-                            .event("health")
-                            .data(report)
-                            .build();
-                });
+        return Flux.interval(Duration.ZERO, Duration.ofSeconds(15))
+                .map(seq -> ServerSentEvent.<HealthReport>builder()
+                        .id(String.valueOf(seq))
+                        .event("health")
+                        .data(buildReport())
+                        .build());
     }
 
     // ---------------------------------------------------------------
-    // REST snapshots (unchanged)
+    // SSE – detailed metrics stream (every 15 s)
+    // GET /api/health/details/stream
+    // ---------------------------------------------------------------
+    @GetMapping(value = "/details/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<ServerSentEvent<DetailedHealthReport>> detailsStream() {
+        return Flux.interval(Duration.ZERO, Duration.ofSeconds(15))
+                .map(seq -> ServerSentEvent.<DetailedHealthReport>builder()
+                        .id(String.valueOf(seq))
+                        .event("health-details")
+                        .data(buildDetailedReport())
+                        .build());
+    }
+
+    // ---------------------------------------------------------------
+    // REST snapshots
     // ---------------------------------------------------------------
 
-    /**
-     * GET /api/health
-     * Aggregated health report for all infrastructure components.
-     * Returns 200 when all services are UP, 207 (Multi-Status) when degraded.
-     */
     @GetMapping
     public ResponseEntity<HealthReport> allHealth() {
         HealthReport report = buildReport();
-        int statusCode = "UP".equals(report.overall()) ? 200 : 207;
-        return ResponseEntity.status(statusCode).body(report);
+        return ResponseEntity.status("UP".equals(report.overall()) ? 200 : 207).body(report);
     }
 
-    /** GET /api/health/postgres */
+    @GetMapping("/details")
+    public ResponseEntity<DetailedHealthReport> detailedHealth() {
+        DetailedHealthReport report = buildDetailedReport();
+        return ResponseEntity.status("UP".equals(report.overall()) ? 200 : 207).body(report);
+    }
+
     @GetMapping("/postgres")
     public ResponseEntity<ServiceHealth> postgresHealth() {
         return toResponse(healthCheckService.checkPostgres());
     }
 
-    /** GET /api/health/kafka */
     @GetMapping("/kafka")
     public ResponseEntity<ServiceHealth> kafkaHealth() {
         return toResponse(healthCheckService.checkKafka());
     }
 
-    /** GET /api/health/spark */
     @GetMapping("/spark")
     public ResponseEntity<ServiceHealth> sparkHealth() {
         return toResponse(healthCheckService.checkSpark());
@@ -84,8 +93,14 @@ public class HealthController {
                 healthCheckService.checkSpark()));
     }
 
+    private DetailedHealthReport buildDetailedReport() {
+        return DetailedHealthReport.of(
+                healthCheckService.postgresMetrics(),
+                healthCheckService.kafkaMetrics(),
+                healthCheckService.sparkMetrics());
+    }
+
     private ResponseEntity<ServiceHealth> toResponse(ServiceHealth health) {
-        int code = "UP".equals(health.status()) ? 200 : 503;
-        return ResponseEntity.status(code).body(health);
+        return ResponseEntity.status("UP".equals(health.status()) ? 200 : 503).body(health);
     }
 }
