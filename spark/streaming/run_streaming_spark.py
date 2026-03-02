@@ -10,7 +10,7 @@ import random
 spark = (
     SparkSession.builder
     .appName("Kafka-PySpark-Streaming-MockSentiment")
-    .master("local[*]")
+    # .master("local[*]")
     .config("spark.shuffle.service.enabled", "false")
     .config("spark.dynamicAllocation.enabled", "false")
     .getOrCreate()
