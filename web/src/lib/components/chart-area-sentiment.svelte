@@ -7,6 +7,12 @@
   import { Area, AreaChart } from "layerchart";
   import { curveNatural } from "d3-shape";
 
+  const gradientIds: Record<string, string> = {
+    positive: "fillPositive",
+    negative: "fillNegative",
+    neutral: "fillNeutral",
+  };
+
   // Sentiment data spanning 90 days (sampled daily)
   const allChartData = [
     { date: new Date("2024-04-01"), positive: 33, negative: 28, neutral: 39 },
@@ -139,42 +145,38 @@
         x="date"
         xScale={scaleUtc()}
         series={[
-          {
-            key: "neutral",
-            label: "Neutral",
-            color: chartConfig.neutral.color,
-          },
-          {
-            key: "negative",
-            label: "Negative",
-            color: chartConfig.negative.color,
-          },
-          {
-            key: "positive",
-            label: "Positive",
-            color: chartConfig.positive.color,
-          },
+          { key: "neutral",  label: "Neutral",  color: chartConfig.neutral.color  },
+          { key: "negative", label: "Negative", color: chartConfig.negative.color },
+          { key: "positive", label: "Positive", color: chartConfig.positive.color },
         ]}
         seriesLayout="stack"
         props={{
           area: {
             curve: curveNatural,
-            "fill-opacity": 0.4,
-            line: { class: "stroke-2" },
+            line: { class: "stroke-1" },
+            motion: "tween",
           },
           xAxis: {
+            ticks: timeRange === "7d" ? 7 : undefined,
             format: (v: Date) =>
               v.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-            classes: { tickLabel: "fill-muted-foreground text-xs" },
           },
-          yAxis: {
-            ticks: 4,
-            format: (v: number) => `${v}%`,
-            classes: { tickLabel: "fill-muted-foreground text-xs" },
-          },
-          grid: { y: true, x: false },
+          yAxis: { format: () => "" },
         }}
       >
+        {#snippet marks({ series, getAreaProps })}
+          <defs>
+            {#each series as s}
+              <linearGradient id={gradientIds[s.key]} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stop-color={s.color} stop-opacity={s.key === "neutral" ? 0.8 : 1.0} />
+                <stop offset="95%" stop-color={s.color} stop-opacity={0.1} />
+              </linearGradient>
+            {/each}
+          </defs>
+          {#each series as s, i (s.key)}
+            <Area {...getAreaProps(s, i)} fill="url(#{gradientIds[s.key]})" />
+          {/each}
+        {/snippet}
         {#snippet tooltip()}
           <Chart.Tooltip
             labelFormatter={(v: Date) =>
