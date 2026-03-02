@@ -25,3 +25,19 @@ spring:
 
 server:
   port: 8090
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
+  endpoint:
+    health:
+      show-details: always
+
+health:
+  spark:
+    master-url: ${SPARK_MASTER_URL:http://localhost:8080}
+
+cors:
+  allowed-origins: ${CORS_ORIGINS:http://localhost:5173,http://localhost:4173}
