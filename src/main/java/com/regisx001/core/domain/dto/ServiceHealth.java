@@ -2,6 +2,14 @@ package com.regisx001.core.domain.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
+/**
+ * Represents the health status of a specific service.
+ *
+ * @param service   the name of the service
+ * @param status    the health status (e.g., UP, DOWN)
+ * @param message   an optional message or error reason
+ * @param latencyMs the latency to the service in milliseconds, if applicable
+ */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ServiceHealth(
         String service,

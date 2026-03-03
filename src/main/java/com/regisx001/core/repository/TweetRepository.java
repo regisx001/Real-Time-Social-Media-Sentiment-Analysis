@@ -12,14 +12,26 @@ import org.springframework.stereotype.Repository;
 
 import com.regisx001.core.domain.entities.Tweet;
 
+/**
+ * Repository interface for managing Tweet entities.
+ */
 @Repository
 public interface TweetRepository extends JpaRepository<Tweet, Long> {
 
-    // Count tweets processed in the last N seconds → throughput
+    /**
+     * Counts the number of tweets processed after a given time.
+     * 
+     * @param since the time to count from
+     * @return the number of tweets processed
+     */
     @Query("SELECT COUNT(t) FROM Tweet t WHERE t.processedAt IS NOT NULL AND t.processedAt >= :since")
     long countProcessedSince(@Param("since") LocalDateTime since);
 
-    // Sentiment aggregates: returns rows of [sentiment (String), count (Long)]
+    /**
+     * Retrieves aggregated sentiment counts for processed tweets.
+     * 
+     * @return a list of rows with sentiment and count
+     */
     @Query(value = """
             SELECT processed_data->>'sentiment' AS sentiment, COUNT(*) AS cnt
             FROM raw_tweets
@@ -29,8 +41,13 @@ public interface TweetRepository extends JpaRepository<Tweet, Long> {
             """, nativeQuery = true)
     List<Object[]> sentimentCounts();
 
-    // Time-series: rows of [bucket_time (Timestamp), sentiment (String), count
-    // (Long)]
+    /**
+     * Retrieves time-series sentiment data based on a specific time bucket.
+     * 
+     * @param bucket the time truncation bucket
+     * @param since  the start time
+     * @return a list of rows with bucket time, sentiment, and count
+     */
     @Query(value = """
             SELECT date_trunc(:bucket, processed_at) AS bucket_time,
                    processed_data->>'sentiment'       AS sentiment,
@@ -44,7 +61,12 @@ public interface TweetRepository extends JpaRepository<Tweet, Long> {
             """, nativeQuery = true)
     List<Object[]> sentimentTimeSeries(@Param("bucket") String bucket, @Param("since") LocalDateTime since);
 
-    // Last N processed tweets for live feed
+    /**
+     * Retrieves the latest N processed tweets.
+     * 
+     * @param limit the number of tweets to retrieve
+     * @return a list of latest processed tweets
+     */
     @Query(value = """
             SELECT * FROM raw_tweets
             WHERE processed_at IS NOT NULL
@@ -54,6 +76,11 @@ public interface TweetRepository extends JpaRepository<Tweet, Long> {
             """, nativeQuery = true)
     List<Tweet> findLatestProcessed(@Param("limit") int limit);
 
-    // Paginated list of all tweets, newest first
+    /**
+     * Retrieves all tweets ordered by their ingestion time descending.
+     * 
+     * @param pageable pagination details
+     * @return a page of tweets
+     */
     Page<Tweet> findAllByOrderByIngestedAtDesc(Pageable pageable);
 }

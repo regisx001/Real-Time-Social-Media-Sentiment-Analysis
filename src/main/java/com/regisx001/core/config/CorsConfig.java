@@ -5,12 +5,23 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+/**
+ * Configuration class for CORS settings.
+ */
 @Configuration
 public class CorsConfig implements WebMvcConfigurer {
 
+    /**
+     * Allowed origins for CORS mapping.
+     */
     @Value("${cors.allowed-origins:http://localhost:5173,http://localhost:4173}")
     private String[] allowedOrigins;
 
+    /**
+     * Adds CORS mappings to the registry.
+     * 
+     * @param registry the CorsRegistry
+     */
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")

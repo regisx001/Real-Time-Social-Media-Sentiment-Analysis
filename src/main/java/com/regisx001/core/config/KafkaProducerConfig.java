@@ -15,12 +15,23 @@ import com.regisx001.core.domain.dto.TweetEvent;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Configuration class for Kafka producers.
+ */
 @Configuration
 public class KafkaProducerConfig {
 
+    /**
+     * The Kafka bootstrap servers configuration.
+     */
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
 
+    /**
+     * Creates the ProducerFactory for TweetEvent.
+     * 
+     * @return a ProducerFactory instance
+     */
     @Bean
     public ProducerFactory<String, TweetEvent> producerFactory() {
         Map<String, Object> configProps = new HashMap<>();
@@ -30,6 +41,11 @@ public class KafkaProducerConfig {
         return new DefaultKafkaProducerFactory<>(configProps);
     }
 
+    /**
+     * Creates a KafkaTemplate to send TweetEvents to Kafka topics.
+     * 
+     * @return a KafkaTemplate instance
+     */
     @Bean
     public KafkaTemplate<String, TweetEvent> kafkaTemplate() {
         return new KafkaTemplate<>(producerFactory());

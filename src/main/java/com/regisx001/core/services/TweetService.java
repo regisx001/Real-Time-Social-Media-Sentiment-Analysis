@@ -15,13 +15,30 @@ import com.regisx001.core.repository.TweetRepository;
 
 import lombok.RequiredArgsConstructor;
 
+/**
+ * Service for handling business logic operations related to tweets.
+ */
 @Service
 @RequiredArgsConstructor
 public class TweetService {
 
+    /**
+     * Repository for persisting initial raw tweets to the database.
+     */
     private final TweetRepository rawTweetRepository;
+
+    /**
+     * Producer for sending ingested tweet events to Kafka for processing.
+     */
     private final TweetProducer tweetProducer;
 
+    /**
+     * Creates a new tweet, saves it in the database, and publishes it to Kafka.
+     *
+     * @param text   the content of the tweet message
+     * @param source the source device or application of the tweet
+     * @return the saved tweet entity
+     */
     @Transactional
     public Tweet createTweet(String text, String source) {
         // 1. Save to DB
@@ -45,6 +62,11 @@ public class TweetService {
         return tweet;
     }
 
+    /**
+     * Retrieves all tweets from the repository.
+     *
+     * @return a list of all tweets
+     */
     public List<Tweet> getAllTweets() {
         return rawTweetRepository.findAll();
     }
