@@ -16,6 +16,7 @@
 
   const navMain = [
     { title: "Dashboard", url: "/dashboard", Icon: LayoutDashboard },
+    { title: "Infrastructure Health", url: "/dashboard/health", Icon: Server },
     // { title: "Sentiment Analysis", url: "#", Icon: Activity },
     // { title: "Analytics", url: "#", Icon: BarChart3 },
     // { title: "Live Stream", url: "#", Icon: Twitter },
@@ -23,7 +24,7 @@
   ];
 
   const navSecondary = [
-    { title: "Infrastructure", url: "/health", Icon: Server },
+    // { title: "Infrastructure", url: "dashboard/health", Icon: Server },
     { title: "Settings", url: "#", Icon: Settings },
     { title: "Get Help", url: "#", Icon: HelpCircle },
   ];
