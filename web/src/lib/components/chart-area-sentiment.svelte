@@ -14,14 +14,17 @@
   // ── Range config ────────────────────────────────────────────────
   type RangeKey = "10m" | "30m" | "1h" | "12h" | "24h" | "7d" | "30d";
 
-  const RANGES: Record<RangeKey, { label: string; bucket: string; minutes: number }> = {
-    "10m": { label: "Last 10 minutes", bucket: "minute", minutes: 10   },
-    "30m": { label: "Last 30 minutes", bucket: "minute", minutes: 30   },
-    "1h":  { label: "Last hour",       bucket: "minute", minutes: 60   },
-    "12h": { label: "Last 12 hours",   bucket: "hour",   minutes: 720  },
-    "24h": { label: "Last 24 hours",   bucket: "hour",   minutes: 1440 },
-    "7d":  { label: "Last 7 days",     bucket: "day",    minutes: 10080},
-    "30d": { label: "Last 30 days",    bucket: "day",    minutes: 43200},
+  const RANGES: Record<
+    RangeKey,
+    { label: string; bucket: string; minutes: number }
+  > = {
+    "10m": { label: "Last 10 minutes", bucket: "minute", minutes: 10 },
+    "30m": { label: "Last 30 minutes", bucket: "minute", minutes: 30 },
+    "1h": { label: "Last hour", bucket: "minute", minutes: 60 },
+    "12h": { label: "Last 12 hours", bucket: "hour", minutes: 720 },
+    "24h": { label: "Last 24 hours", bucket: "hour", minutes: 1440 },
+    "7d": { label: "Last 7 days", bucket: "day", minutes: 10080 },
+    "30d": { label: "Last 30 days", bucket: "day", minutes: 43200 },
   };
 
   let timeRange = $state<RangeKey>("10m");
@@ -29,7 +32,7 @@
   const gradientIds: Record<string, string> = {
     positive: "fillPositive",
     negative: "fillNegative",
-    neutral:  "fillNeutral",
+    neutral: "fillNeutral",
   };
 
   const selectedLabel = $derived(RANGES[timeRange].label);
@@ -57,34 +60,53 @@
       .filter((d) => {
         if (timeRange !== "10m") return true;
         return d.date >= new Date(Date.now() - 10 * 60 * 1000);
-      })
+      }),
   );
 
   // ── X-axis / tooltip formatting ─────────────────────────────────
   function xFormatter(v: Date): string {
     if (timeRange === "1m" || timeRange === "1h") {
-      return v.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+      return v.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
     }
     if (timeRange === "12h" || timeRange === "24h") {
-      return v.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+      return v.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
     }
     return v.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   }
 
   function tooltipFormatter(v: Date): string {
     if (timeRange === "1m" || timeRange === "1h") {
-      return v.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      return v.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
     }
     if (timeRange === "12h" || timeRange === "24h") {
-      return v.toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+      return v.toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
     }
-    return v.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    return v.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
   }
 
   const chartConfig = {
     positive: { label: "Positive", color: "var(--chart-2)" },
     negative: { label: "Negative", color: "var(--chart-1)" },
-    neutral:  { label: "Neutral",  color: "var(--chart-3)" },
+    neutral: { label: "Neutral", color: "var(--chart-3)" },
   } satisfies Chart.ChartConfig;
 </script>
 
@@ -113,7 +135,11 @@
         <ToggleGroup.Item value="7d">7 days</ToggleGroup.Item>
         <ToggleGroup.Item value="30d">30 days</ToggleGroup.Item>
       </ToggleGroup.Root>
-      <Select.Root type="single" value={timeRange} onValueChange={(v) => v && onRangeChange(v)}>
+      <Select.Root
+        type="single"
+        value={timeRange}
+        onValueChange={(v) => v && onRangeChange(v)}
+      >
         <Select.Trigger
           size="sm"
           class="flex w-40 **:data-[slot=select-value]:block **:data-[slot=select-value]:truncate @[767px]/card:hidden"
@@ -122,12 +148,18 @@
           <span data-slot="select-value">{selectedLabel}</span>
         </Select.Trigger>
         <Select.Content class="rounded-xl">
-          <Select.Item value="10m" class="rounded-lg">Last 10 minutes</Select.Item>
-          <Select.Item value="30m" class="rounded-lg">Last 30 minutes</Select.Item>
-          <Select.Item value="1h"  class="rounded-lg">Last hour</Select.Item>
-          <Select.Item value="12h" class="rounded-lg">Last 12 hours</Select.Item>
-          <Select.Item value="24h" class="rounded-lg">Last 24 hours</Select.Item>
-          <Select.Item value="7d"  class="rounded-lg">Last 7 days</Select.Item>
+          <Select.Item value="10m" class="rounded-lg"
+            >Last 10 minutes</Select.Item
+          >
+          <Select.Item value="30m" class="rounded-lg"
+            >Last 30 minutes</Select.Item
+          >
+          <Select.Item value="1h" class="rounded-lg">Last hour</Select.Item>
+          <Select.Item value="12h" class="rounded-lg">Last 12 hours</Select.Item
+          >
+          <Select.Item value="24h" class="rounded-lg">Last 24 hours</Select.Item
+          >
+          <Select.Item value="7d" class="rounded-lg">Last 7 days</Select.Item>
           <Select.Item value="30d" class="rounded-lg">Last 30 days</Select.Item>
         </Select.Content>
       </Select.Root>
@@ -204,10 +236,7 @@
             {/each}
           {/snippet}
           {#snippet tooltip()}
-            <Chart.Tooltip
-              labelFormatter={tooltipFormatter}
-              indicator="line"
-            />
+            <Chart.Tooltip labelFormatter={tooltipFormatter} indicator="line" />
           {/snippet}
         </AreaChart>
       </Chart.Container>
