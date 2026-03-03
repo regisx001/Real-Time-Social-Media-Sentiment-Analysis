@@ -40,4 +40,7 @@ public class Tweet {
     @Column(name = "ingested_at", nullable = false)
     private LocalDateTime ingestedAt;
 
+    @Column(name = "processed_at")
+    private LocalDateTime processedAt;
+
 }

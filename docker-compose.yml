@@ -69,36 +69,7 @@ services:
     volumes:
       - ./data:/opt/spark/work-dir/data
 
-  spark-worker-2:
-    image: apache/spark:3.5.1
-    container_name: spark-worker-2
-    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
-    environment:
-      - SPARK_NO_DAEMONIZE=true
-    depends_on:
-      - spark-master
-    ports:
-      - "8082:8081"
-    networks:
-      - realtime-social-media-sentiments-net
-    volumes:
-      - ./data:/opt/spark/work-dir/data
-
-  spark-worker-3:
-    image: apache/spark:3.5.1
-    container_name: spark-worker-3
-    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
-    environment:
-      - SPARK_NO_DAEMONIZE=true
-    depends_on:
-      - spark-master
-    ports:
-      - "8083:8081"
-    networks:
-      - realtime-social-media-sentiments-net
-    volumes:
-      - ./data:/opt/spark/work-dir/data
-
+  
   spark-training:
     build:
       context: ./spark/training
@@ -107,8 +78,6 @@ services:
     depends_on:
       - spark-master
       - spark-worker
-      - spark-worker-2
-      - spark-worker-3
       - broker
     networks:
       - realtime-social-media-sentiments-net
@@ -123,8 +92,7 @@ services:
     depends_on:
       - spark-master
       - spark-worker
-      - spark-worker-2
-      - spark-worker-3
+
       - spark-training
       - broker
     networks:
