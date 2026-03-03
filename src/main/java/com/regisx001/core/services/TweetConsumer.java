@@ -16,13 +16,26 @@ import com.regisx001.core.repository.TweetRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Service responsible for consuming processed tweets from Kafka and updating
+ * the database.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class TweetConsumer {
 
+    /**
+     * Repository to manage tweet records in the database.
+     */
     private final TweetRepository TweetRepository;
 
+    /**
+     * Consumes a processed tweet event and updates the sentiment analysis result in
+     * the database.
+     *
+     * @param event the processed tweet event received from Kafka
+     */
     @KafkaListener(topics = "tweets.processed", groupId = "core-consumer")
     @Transactional
     public void consume(ProcessedTweetEvent event) {

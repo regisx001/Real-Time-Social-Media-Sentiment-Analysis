@@ -20,11 +20,17 @@ import com.regisx001.core.repository.TweetRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Service for calculating overall sentiment analytics and managing live feeds.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AnalyticsService {
 
+    /**
+     * Repository used directly to run aggregations over stored tweets.
+     */
     private final TweetRepository tweetRepository;
 
     // ---------------------------------------------------------------
@@ -32,6 +38,15 @@ public class AnalyticsService {
     // bucket = "hour" or "day"
     // lookbackHours = how far back to query for the time-series
     // ---------------------------------------------------------------
+    /**
+     * Generates a full analytics report containing summaries and time-series data.
+     *
+     * @param bucket          the aggregation bucket ("hour" or "minute" depending
+     *                        on requirements)
+     * @param lookbackMinutes how far back (in minutes) to gather time-series points
+     *                        for the report
+     * @return a comprehensive AnalyticsReport containing the data
+     */
     public AnalyticsReport getReport(String bucket, int lookbackMinutes) {
         AnalyticsSummary summary = buildSummary();
         List<SentimentTimePoint> timeSeries = buildTimeSeries(bucket, lookbackMinutes);
@@ -101,6 +116,12 @@ public class AnalyticsService {
     // ---------------------------------------------------------------
     // Live feed: last N processed tweets
     // ---------------------------------------------------------------
+    /**
+     * Fetches a direct stream of the latest completely processed tweets.
+     *
+     * @param limit the max number of recent tweets to retrieve
+     * @return a list of live tweets mapped for the UI
+     */
     public List<LiveTweetDto> getLiveFeed(int limit) {
         List<Tweet> tweets = tweetRepository.findLatestProcessed(limit);
         List<LiveTweetDto> result = new ArrayList<>(tweets.size());

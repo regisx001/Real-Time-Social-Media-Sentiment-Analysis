@@ -15,16 +15,30 @@ import org.springframework.kafka.support.serializer.JsonDeserializer;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Configuration class for Kafka consumers.
+ */
 @EnableKafka
 @Configuration
 public class KafkaConsumerConfig {
 
+    /**
+     * The Kafka bootstrap servers configuration.
+     */
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
 
+    /**
+     * The Kafka consumer group ID.
+     */
     @Value("${spring.kafka.consumer.group-id}")
     private String groupId;
 
+    /**
+     * Creates the ConsumerFactory.
+     * 
+     * @return a ConsumerFactory instance
+     */
     @Bean
     public ConsumerFactory<String, Object> consumerFactory() {
         Map<String, Object> props = new HashMap<>();
@@ -50,6 +64,11 @@ public class KafkaConsumerConfig {
         return new DefaultKafkaConsumerFactory<>(props);
     }
 
+    /**
+     * Creates a KafkaListenerContainerFactory for consuming Kafka messages.
+     * 
+     * @return an instance of ConcurrentKafkaListenerContainerFactory
+     */
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
