@@ -2,6 +2,20 @@
   import { TrendingDown, TrendingUp } from "@lucide/svelte";
   import { Badge } from "$lib/components/ui/badge/index.js";
   import * as Card from "$lib/components/ui/card/index.js";
+  import type { AnalyticsSummary } from "$lib/stores/analytics.js";
+
+  let { summary }: { summary: AnalyticsSummary | null | undefined } = $props();
+
+  const total = $derived(summary?.totalProcessed ?? 0);
+  const posRate = $derived(
+    total > 0 ? ((summary!.positive / total) * 100).toFixed(1) : "—",
+  );
+  const negRate = $derived(
+    total > 0 ? ((summary!.negative / total) * 100).toFixed(1) : "—",
+  );
+  const throughput = $derived(
+    summary != null ? summary.throughputPerSec.toFixed(1) : "—",
+  );
 </script>
 
 <div
@@ -14,18 +28,18 @@
       <Card.Title
         class="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl"
       >
-        146,592
+        {total.toLocaleString()}
       </Card.Title>
       <Card.Action>
         <Badge variant="outline">
           <TrendingUp class="size-4" />
-          +12.5%
+          Live
         </Badge>
       </Card.Action>
     </Card.Header>
     <Card.Footer class="flex-col items-start gap-1.5 text-sm">
       <div class="line-clamp-1 flex gap-2 font-medium">
-        Up 12.5% this hour <TrendingUp class="size-4" />
+        Cumulative total <TrendingUp class="size-4" />
       </div>
       <div class="text-muted-foreground">Total messages ingested via Kafka</div>
     </Card.Footer>
@@ -38,18 +52,18 @@
       <Card.Title
         class="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl"
       >
-        716 msg/s
+        {throughput} msg/s
       </Card.Title>
       <Card.Action>
         <Badge variant="outline">
           <TrendingUp class="size-4" />
-          +5.2%
+          60 s window
         </Badge>
       </Card.Action>
     </Card.Header>
     <Card.Footer class="flex-col items-start gap-1.5 text-sm">
       <div class="line-clamp-1 flex gap-2 font-medium">
-        Throughput increasing <TrendingUp class="size-4" />
+        Rolling 60-second average <TrendingUp class="size-4" />
       </div>
       <div class="text-muted-foreground">
         Spark Structured Streaming pipeline
@@ -64,18 +78,18 @@
       <Card.Title
         class="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl"
       >
-        36.0%
+        {posRate}{total > 0 ? "%" : ""}
       </Card.Title>
       <Card.Action>
         <Badge variant="outline">
           <TrendingUp class="size-4" />
-          +2.1%
+          {summary?.positive.toLocaleString() ?? 0} tweets
         </Badge>
       </Card.Action>
     </Card.Header>
     <Card.Footer class="flex-col items-start gap-1.5 text-sm">
       <div class="line-clamp-1 flex gap-2 font-medium">
-        Positive trend this session <TrendingUp class="size-4" />
+        Of all processed tweets <TrendingUp class="size-4" />
       </div>
       <div class="text-muted-foreground">Logistic regression model output</div>
     </Card.Footer>
@@ -88,20 +102,20 @@
       <Card.Title
         class="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl"
       >
-        28.8%
+        {negRate}{total > 0 ? "%" : ""}
       </Card.Title>
       <Card.Action>
         <Badge variant="outline">
           <TrendingDown class="size-4" />
-          -1.3%
+          {summary?.negative.toLocaleString() ?? 0} tweets
         </Badge>
       </Card.Action>
     </Card.Header>
     <Card.Footer class="flex-col items-start gap-1.5 text-sm">
       <div class="line-clamp-1 flex gap-2 font-medium">
-        Negative signals declining <TrendingDown class="size-4" />
+        Of all processed tweets <TrendingDown class="size-4" />
       </div>
-      <div class="text-muted-foreground">Compared to previous hour</div>
+      <div class="text-muted-foreground">Compared to total processed</div>
     </Card.Footer>
   </Card.Root>
 </div>

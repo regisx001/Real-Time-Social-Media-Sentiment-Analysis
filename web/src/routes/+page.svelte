@@ -30,6 +30,7 @@
   } from "@lucide/svelte";
 
   import { serviceMap, connectionState, lastUpdated } from "$lib/stores/health";
+  import { liveFeed } from "$lib/stores/liveFeed.js";
 
   // Helper: get status for a named service from the live store
   function svcStatus(name: string): "UP" | "DOWN" | "UNKNOWN" {
@@ -134,51 +135,19 @@
     { name: "Amazon", mentions: "410", sentiment: "neutral" },
   ];
 
-  // Dummy Live Stream Data
-  const liveTweets = [
-    {
-      id: 1,
-      user: "JohnDoe",
-      text: "Just got the new iPhone, amazing camera! ✨",
-      sentiment: "positive",
-      time: "Just now",
-    },
-    {
-      id: 2,
-      user: "JaneSmith",
-      text: "Tesla autopilot is scaring me sometimes 😨",
-      sentiment: "negative",
-      time: "2s ago",
-    },
-    {
-      id: 3,
-      user: "DevGuy",
-      text: "Google Cloud pricing changed for my project.",
-      sentiment: "neutral",
-      time: "5s ago",
-    },
-    {
-      id: 4,
-      user: "TechEnthusiast",
-      text: "Microsoft Copilot is a game changer for real!",
-      sentiment: "positive",
-      time: "10s ago",
-    },
-    {
-      id: 5,
-      user: "AngryCustomer",
-      text: "Amazon delivery is late again for the 3rd time.",
-      sentiment: "negative",
-      time: "12s ago",
-    },
-    {
-      id: 6,
-      user: "Investor",
-      text: "Apple stock looking very strong today 📈",
-      sentiment: "positive",
-      time: "15s ago",
-    },
-  ];
+  // Live Stream Data from SSE store
+  const liveTweets = $derived(
+    $liveFeed.map((t) => ({
+      id: t.id,
+      user: `@${t.id}`,
+      text: t.text,
+      sentiment: t.sentiment.toLowerCase() as
+        | "positive"
+        | "negative"
+        | "neutral",
+      time: new Date(t.processedAt).toLocaleTimeString(),
+    })),
+  );
 </script>
 
 <div class="min-h-screen bg-background text-foreground">
@@ -635,43 +604,51 @@
             <Card.Content class="flex-1 overflow-hidden p-0">
               <ScrollArea class="h-full px-6 pb-6 pt-2">
                 <div class="space-y-6">
-                  {#each liveTweets as tweet}
-                    <div class="flex items-start gap-4">
-                      <Avatar.Root class="w-9 h-9 mt-0.5 shadow-sm border">
-                        <Avatar.Fallback
-                          class="bg-secondary text-secondary-foreground text-xs font-semibold"
-                          >{tweet.user
-                            .substring(0, 2)
-                            .toUpperCase()}</Avatar.Fallback
-                        >
-                      </Avatar.Root>
-                      <div class="space-y-1.5 flex-1 w-0">
-                        <div class="flex items-center justify-between gap-2">
-                          <p class="text-sm font-semibold leading-none">
-                            {tweet.user}
-                          </p>
-                          <span
-                            class="text-[10px] text-muted-foreground whitespace-nowrap"
-                            >{tweet.time}</span
-                          >
-                        </div>
-                        <p
-                          class="text-sm text-muted-foreground line-clamp-2 leading-snug"
-                        >
-                          {tweet.text}
-                        </p>
-                      </div>
-                      <div class="pt-0.5">
-                        {#if tweet.sentiment === "positive"}
-                          <CircleCheck class="w-4 h-4 text-emerald-500" />
-                        {:else if tweet.sentiment === "negative"}
-                          <AlertTriangle class="w-4 h-4 text-red-500" />
-                        {:else}
-                          <Info class="w-4 h-4 text-slate-400" />
-                        {/if}
-                      </div>
+                  {#if liveTweets.length === 0}
+                    <div
+                      class="flex items-center justify-center h-40 text-sm text-muted-foreground"
+                    >
+                      Waiting for live data…
                     </div>
-                  {/each}
+                  {:else}
+                    {#each liveTweets as tweet}
+                      <div class="flex items-start gap-4">
+                        <Avatar.Root class="w-9 h-9 mt-0.5 shadow-sm border">
+                          <Avatar.Fallback
+                            class="bg-secondary text-secondary-foreground text-xs font-semibold"
+                            >{tweet.user
+                              .substring(0, 2)
+                              .toUpperCase()}</Avatar.Fallback
+                          >
+                        </Avatar.Root>
+                        <div class="space-y-1.5 flex-1 w-0">
+                          <div class="flex items-center justify-between gap-2">
+                            <p class="text-sm font-semibold leading-none">
+                              {tweet.user}
+                            </p>
+                            <span
+                              class="text-[10px] text-muted-foreground whitespace-nowrap"
+                              >{tweet.time}</span
+                            >
+                          </div>
+                          <p
+                            class="text-sm text-muted-foreground line-clamp-2 leading-snug"
+                          >
+                            {tweet.text}
+                          </p>
+                        </div>
+                        <div class="pt-0.5">
+                          {#if tweet.sentiment === "positive"}
+                            <CircleCheck class="w-4 h-4 text-emerald-500" />
+                          {:else if tweet.sentiment === "negative"}
+                            <AlertTriangle class="w-4 h-4 text-red-500" />
+                          {:else}
+                            <Info class="w-4 h-4 text-slate-400" />
+                          {/if}
+                        </div>
+                      </div>
+                    {/each}
+                  {/if}
                 </div>
               </ScrollArea>
             </Card.Content>
@@ -697,10 +674,7 @@
             {#each [{ label: "Apache Kafka", key: "Kafka", Icon: ActivityIcon }, { label: "Spark Master", key: "Spark", Icon: Cpu }, { label: "Spring Boot API", key: "SpringBoot", Icon: Box }, { label: "PostgreSQL 16", key: "PostgreSQL", Icon: Database }] as svc}
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-3">
-                  <svelte:component
-                    this={svc.Icon}
-                    class="w-4 h-4 text-muted-foreground"
-                  />
+                  <svc.Icon class="w-4 h-4 text-muted-foreground" />
                   <div class="flex flex-col">
                     <span class="text-sm font-medium">{svc.label}</span>
                     {#if svcLatency(svc.key)}

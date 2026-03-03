@@ -1,5 +1,6 @@
 package com.regisx001.core.services;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -40,6 +41,7 @@ public class TweetConsumer {
                 processedData.put("sentiment", mapSentiment(event.sentiment()));
                 processedData.put("score", event.score());
                 tweet.setProcessedData(processedData);
+                tweet.setProcessedAt(LocalDateTime.now());
 
                 TweetRepository.save(tweet);
             } else {
