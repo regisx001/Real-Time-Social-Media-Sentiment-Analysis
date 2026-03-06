@@ -12,18 +12,25 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.regisx001.core.domain.dto.DetailedHealthReport;
 import com.regisx001.core.domain.dto.HealthReport;
+import com.regisx001.core.domain.dto.IntentHealthResponse;
 import com.regisx001.core.domain.dto.ServiceHealth;
 import com.regisx001.core.services.HealthCheckService;
+import com.regisx001.core.services.IntentHealthService;
 
-import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Flux;
 
 @RestController
 @RequestMapping("/api/health")
-@RequiredArgsConstructor
+// @RequiredArgsConstructor
 public class HealthController {
 
     private final HealthCheckService healthCheckService;
+    private final IntentHealthService intentHealthService;
+
+    public HealthController(HealthCheckService healthCheckService, IntentHealthService intentHealthService) {
+        this.healthCheckService = healthCheckService;
+        this.intentHealthService = intentHealthService;
+    }
 
     // ---------------------------------------------------------------
     // SSE – simple health stream (every 3 s)
@@ -51,6 +58,21 @@ public class HealthController {
                         .event("health-details")
                         .data(buildDetailedReport())
                         .build());
+    }
+
+    // ---------------------------------------------------------------
+    // SSE – intent (Colab) health stream (every 3 s)
+    // GET /api/health/intent/stream
+    // ---------------------------------------------------------------
+    @GetMapping(value = "/intent/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<ServerSentEvent<IntentHealthResponse>> intentHealthStream() {
+        return Flux.interval(Duration.ZERO, Duration.ofSeconds(3))
+                .flatMap(seq -> intentHealthService.fetchHealth()
+                        .map(health -> ServerSentEvent.<IntentHealthResponse>builder()
+                                .id(String.valueOf(seq))
+                                .event("intent-health")
+                                .data(health)
+                                .build()));
     }
 
     // ---------------------------------------------------------------

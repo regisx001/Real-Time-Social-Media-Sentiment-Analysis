@@ -28,6 +28,7 @@
     WifiOff,
     AlertCircle,
     Circle,
+    Brain,
   } from "@lucide/svelte";
 
   import { TrendingUp, TrendingDown } from "@lucide/svelte";
@@ -36,6 +37,7 @@
     detailedReport,
     connectionState,
     lastUpdated,
+    intentHealth,
   } from "$lib/stores/health";
 
   function fmtBytes(bytes: number): string {
@@ -816,6 +818,265 @@
           </Card.Root>
         </Collapsible.Root>
       {/if}
+
+      <!-- ── Intent Service (Python / Colab) ─────────────── -->
+      <div
+        class="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs @xl/main:grid-cols-3"
+      >
+        <!-- Status + CPU -->
+        <Card.Root class="@container/card flex flex-col">
+          <Card.Header>
+            <Card.Description class="flex items-center justify-between">
+              <span class="flex items-center gap-1.5"
+                ><Brain class="size-3.5" />Intent Service (Python)</span
+              >
+              {#if $intentHealth}
+                <Badge
+                  variant={$intentHealth.status === "healthy"
+                    ? "default"
+                    : "destructive"}
+                >
+                  {$intentHealth.status === "healthy" ? "UP" : "DOWN"}
+                </Badge>
+              {:else}
+                <Badge variant="secondary">Connecting…</Badge>
+              {/if}
+            </Card.Description>
+            <Card.Title
+              class="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl"
+            >
+              {#if $intentHealth?.system_metrics}
+                {$intentHealth.system_metrics.cpu_usage_percent.toFixed(1)}%
+              {:else}
+                —
+              {/if}
+            </Card.Title>
+            <Card.Action>
+              <Badge variant="outline">
+                <Cpu class="size-4" /> CPU Usage
+              </Badge>
+            </Card.Action>
+          </Card.Header>
+          <Card.Footer class="flex-col items-start gap-3 text-sm">
+            {#if !$intentHealth}
+              <div
+                class="flex items-center gap-2 text-muted-foreground text-xs"
+              >
+                <AlertCircle class="size-4" /> Waiting for intent service…
+              </div>
+            {:else if $intentHealth.status !== "healthy"}
+              <div class="flex items-center gap-2 font-medium text-destructive">
+                <XCircle class="size-4" /> Service unavailable
+              </div>
+            {:else}
+              {@const sm = $intentHealth.system_metrics!}
+              <div class="w-full space-y-3">
+                <div class="space-y-1.5">
+                  <div class="flex items-center justify-between text-xs">
+                    <span
+                      class="flex items-center gap-1.5 text-muted-foreground"
+                      ><Cpu class="size-3" />CPU</span
+                    >
+                    <span class="font-mono font-medium"
+                      >{sm.cpu_usage_percent.toFixed(1)}%</span
+                    >
+                  </div>
+                  <div
+                    class="relative h-1 w-full overflow-hidden rounded-full bg-secondary"
+                  >
+                    <div
+                      class="h-full transition-all duration-700 {usageColor(
+                        sm.cpu_usage_percent,
+                      )}"
+                      style="width:{sm.cpu_usage_percent}%"
+                    ></div>
+                  </div>
+                </div>
+                <div class="space-y-1.5">
+                  <div class="flex items-center justify-between text-xs">
+                    <span
+                      class="flex items-center gap-1.5 text-muted-foreground"
+                      ><MemoryStick class="size-3" />RAM</span
+                    >
+                    <span class="font-mono font-medium"
+                      >{sm.ram_gb.used.toFixed(1)} / {sm.ram_gb.total.toFixed(
+                        1,
+                      )} GB ({sm.ram_gb.percent.toFixed(0)}%)</span
+                    >
+                  </div>
+                  <div
+                    class="relative h-1 w-full overflow-hidden rounded-full bg-secondary"
+                  >
+                    <div
+                      class="h-full transition-all duration-700 {usageColor(
+                        sm.ram_gb.percent,
+                      )}"
+                      style="width:{sm.ram_gb.percent}%"
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            {/if}
+          </Card.Footer>
+        </Card.Root>
+
+        <!-- Models loaded -->
+        <Card.Root class="@container/card flex flex-col">
+          <Card.Header>
+            <Card.Description class="flex items-center justify-between">
+              <span class="flex items-center gap-1.5"
+                ><Layers class="size-3.5" />INTENT Models</span
+              >
+              {#if $intentHealth}
+                <Badge
+                  variant={$intentHealth.models_loaded
+                    ? "default"
+                    : "destructive"}
+                >
+                  {$intentHealth.models_loaded ? "Loaded" : "Not Loaded"}
+                </Badge>
+              {:else}
+                <Badge variant="secondary">—</Badge>
+              {/if}
+            </Card.Description>
+            <Card.Title
+              class="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl"
+            >
+              {#if $intentHealth?.models_loaded}
+                Ready
+              {:else if $intentHealth}
+                Not Ready
+              {:else}
+                —
+              {/if}
+            </Card.Title>
+            <Card.Action>
+              <Badge variant="outline">
+                <Zap class="size-4" /> Inference
+              </Badge>
+            </Card.Action>
+          </Card.Header>
+          <Card.Footer class="flex-col items-start gap-3 text-sm">
+            {#if $intentHealth?.models_loaded}
+              <div
+                class="flex items-center gap-2 font-medium text-emerald-600 dark:text-emerald-400"
+              >
+                <CheckCircle2 class="size-4" /> Models loaded and ready
+              </div>
+              <div class="text-muted-foreground text-xs">
+                Intent classification model is active and accepting requests.
+              </div>
+            {:else if $intentHealth}
+              <div class="flex items-center gap-2 font-medium text-destructive">
+                <XCircle class="size-4" /> Models not loaded
+              </div>
+            {:else}
+              <div class="text-muted-foreground text-xs">
+                Waiting for service response…
+              </div>
+            {/if}
+          </Card.Footer>
+        </Card.Root>
+
+        <!-- GPU -->
+        <Card.Root class="@container/card flex flex-col">
+          <Card.Header>
+            <Card.Description class="flex items-center justify-between">
+              <span class="flex items-center gap-1.5"
+                ><BarChart3 class="size-3.5" />GPU (CUDA)</span
+              >
+              {#if $intentHealth?.system_metrics?.gpu}
+                <Badge
+                  variant={$intentHealth.system_metrics.gpu.available
+                    ? "default"
+                    : "secondary"}
+                >
+                  {$intentHealth.system_metrics.gpu.available
+                    ? "Available"
+                    : "CPU Only"}
+                </Badge>
+              {:else}
+                <Badge variant="secondary">—</Badge>
+              {/if}
+            </Card.Description>
+            <Card.Title
+              class="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl"
+            >
+              {#if $intentHealth?.system_metrics?.gpu?.available && $intentHealth.system_metrics.gpu.vram_gb}
+                {$intentHealth.system_metrics.gpu.vram_gb.free.toFixed(1)} GB
+              {:else}
+                —
+              {/if}
+            </Card.Title>
+            <Card.Action>
+              <Badge variant="outline">VRAM Free</Badge>
+            </Card.Action>
+          </Card.Header>
+          <Card.Footer class="flex-col items-start gap-3 text-sm">
+            {#if !$intentHealth}
+              <div class="text-muted-foreground text-xs">
+                Waiting for service…
+              </div>
+            {:else if !$intentHealth.system_metrics?.gpu?.available}
+              <div
+                class="flex items-center gap-2 text-muted-foreground text-xs"
+              >
+                <AlertCircle class="size-4" /> No CUDA GPU detected — running on
+                CPU.
+              </div>
+            {:else}
+              {@const gpu = $intentHealth.system_metrics!.gpu}
+              {@const vram = gpu.vram_gb!}
+              <div class="font-medium text-xs">{gpu.device_name}</div>
+              <Separator />
+              <div class="w-full space-y-3">
+                <div class="space-y-1.5">
+                  <div class="flex items-center justify-between text-xs">
+                    <span
+                      class="flex items-center gap-1.5 text-muted-foreground"
+                      ><HardDrive class="size-3" />VRAM Allocated</span
+                    >
+                    <span class="font-mono font-medium"
+                      >{vram.allocated.toFixed(2)} / {vram.total.toFixed(2)} GB</span
+                    >
+                  </div>
+                  <div
+                    class="relative h-1 w-full overflow-hidden rounded-full bg-secondary"
+                  >
+                    <div
+                      class="h-full transition-all duration-700 {usageColor(
+                        pct(vram.allocated, vram.total),
+                      )}"
+                      style="width:{pct(vram.allocated, vram.total)}%"
+                    ></div>
+                  </div>
+                </div>
+                <div class="space-y-1.5">
+                  <div class="flex items-center justify-between text-xs">
+                    <span
+                      class="flex items-center gap-1.5 text-muted-foreground"
+                      ><MemoryStick class="size-3" />VRAM Reserved</span
+                    >
+                    <span class="font-mono font-medium"
+                      >{vram.reserved.toFixed(2)} / {vram.total.toFixed(2)} GB</span
+                    >
+                  </div>
+                  <div
+                    class="relative h-1 w-full overflow-hidden rounded-full bg-secondary"
+                  >
+                    <div
+                      class="h-full transition-all duration-700 {usageColor(
+                        pct(vram.reserved, vram.total),
+                      )}"
+                      style="width:{pct(vram.reserved, vram.total)}%"
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            {/if}
+          </Card.Footer>
+        </Card.Root>
+      </div>
     {/if}
   </div>
 </div>

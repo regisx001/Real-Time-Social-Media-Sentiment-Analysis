@@ -65,7 +65,7 @@
 
   // ── X-axis / tooltip formatting ─────────────────────────────────
   function xFormatter(v: Date): string {
-    if (timeRange === "1m" || timeRange === "1h") {
+    if (timeRange === "10m" || timeRange === "1h") {
       return v.toLocaleTimeString("en-US", {
         hour: "2-digit",
         minute: "2-digit",
@@ -81,7 +81,7 @@
   }
 
   function tooltipFormatter(v: Date): string {
-    if (timeRange === "1m" || timeRange === "1h") {
+    if (timeRange === "10m" || timeRange === "1h") {
       return v.toLocaleTimeString("en-US", {
         hour: "2-digit",
         minute: "2-digit",

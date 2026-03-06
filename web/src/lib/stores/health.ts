@@ -78,6 +78,38 @@ export interface DetailedHealthReport {
   spark: SparkMetrics;
 }
 
+export interface RamGb {
+  total: number;
+  used: number;
+  free: number;
+  percent: number;
+}
+
+export interface VramGb {
+  total: number;
+  allocated: number;
+  reserved: number;
+  free: number;
+}
+
+export interface GpuStats {
+  available: boolean;
+  device_name?: string;
+  vram_gb?: VramGb;
+}
+
+export interface SystemMetrics {
+  cpu_usage_percent: number;
+  ram_gb: RamGb;
+  gpu: GpuStats;
+}
+
+export interface IntentHealthResponse {
+  status: string;
+  models_loaded: boolean;
+  system_metrics?: SystemMetrics;
+}
+
 type ConnectionState = 'connecting' | 'connected' | 'error' | 'closed';
 
 // ---------------------------------------------------------------
@@ -85,6 +117,7 @@ type ConnectionState = 'connecting' | 'connected' | 'error' | 'closed';
 // ---------------------------------------------------------------
 const _report = writable<HealthReport | null>(null);
 const _detailed = writable<DetailedHealthReport | null>(null);
+const _intent = writable<IntentHealthResponse | null>(null);
 const _connectionState = writable<ConnectionState>('connecting');
 const _lastUpdated = writable<Date | null>(null);
 
@@ -93,6 +126,7 @@ const _lastUpdated = writable<Date | null>(null);
 // ---------------------------------------------------------------
 export const healthReport = derived(_report, ($r) => $r);
 export const detailedReport = derived(_detailed, ($r) => $r);
+export const intentHealth = derived(_intent, ($i) => $i);
 export const connectionState = derived(_connectionState, ($s) => $s);
 export const lastUpdated = derived(_lastUpdated, ($d) => $d);
 
@@ -108,10 +142,13 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8090';
 
 let simpleEs: EventSource | null = null;
 let detailEs: EventSource | null = null;
+let intentEs: EventSource | null = null;
 let simpleRetry: ReturnType<typeof setTimeout> | null = null;
 let detailRetry: ReturnType<typeof setTimeout> | null = null;
+let intentRetry: ReturnType<typeof setTimeout> | null = null;
 let simpleDelay = 3_000;
 let detailDelay = 3_000;
+let intentDelay = 3_000;
 
 function connectSimple() {
   if (!browser) return;
@@ -159,18 +196,42 @@ function connectDetails() {
   };
 }
 
+function connectIntent() {
+  if (!browser) return;
+  intentEs = new EventSource(`${API_BASE}/api/health/intent/stream`);
+
+  intentEs.addEventListener('intent-health', (e: MessageEvent) => {
+    try {
+      _intent.set(JSON.parse(e.data));
+      intentDelay = 3_000;
+    } catch { /* ignore parse errors */ }
+  });
+
+  intentEs.onerror = () => {
+    intentEs?.close();
+    intentEs = null;
+    intentRetry = setTimeout(() => {
+      intentDelay = Math.min(intentDelay * 2, 30_000);
+      connectIntent();
+    }, intentDelay);
+  };
+}
+
 function disconnect() {
   if (simpleRetry) clearTimeout(simpleRetry);
   if (detailRetry) clearTimeout(detailRetry);
+  if (intentRetry) clearTimeout(intentRetry);
   simpleEs?.close();
   detailEs?.close();
-  simpleEs = detailEs = null;
+  intentEs?.close();
+  simpleEs = detailEs = intentEs = null;
   _connectionState.set('closed');
 }
 
 if (browser) {
   connectSimple();
   connectDetails();
+  connectIntent();
 }
 
 export const healthStore = { disconnect };
