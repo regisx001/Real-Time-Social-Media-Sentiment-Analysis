@@ -11,8 +11,6 @@ from pyspark.ml.feature import (
 from pyspark.ml.classification import LogisticRegression
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.sql.functions import col, lower, regexp_replace, when
-import os
-
 
 def main():
 
@@ -24,33 +22,25 @@ def main():
 
     spark.sparkContext.setLogLevel("WARN")
 
-    # ===============================
-    # PATHS (Docker shared volume)
-    # ===============================
-
+    # ✅ ALWAYS use shared volume
     base_path = "/opt/spark/work-dir/data"
     train_path = f"{base_path}/twitter/twitter_training.csv"
     validation_path = f"{base_path}/twitter/twitter_validation.csv"
-    model_output_path = f"{base_path}/models/spark_sentiment_model"
+    model_output_path = f"{base_path}/spark_sentiment_model"
 
-    print(f"Loading training data from: {train_path}")
-    print(f"Loading validation data from: {validation_path}")
+    print(f"Training data: {train_path}")
+    print(f"Validation data: {validation_path}")
+    print(f"Model output: {model_output_path}")
 
     # ===============================
-    # LOAD TRAINING DATA
+    # LOAD DATA
     # ===============================
+    df = spark.read.csv(train_path, header=False, inferSchema=True) \
+        .toDF("id", "entity", "sentiment", "text")
 
-    df = spark.read.csv(
-        train_path,
-        header=False,
-        inferSchema=True
-    ).toDF("id", "entity", "sentiment", "text")
-
-    df = (
-        df.withColumnRenamed("sentiment", "target")
-          .withColumnRenamed("text", "cleaned_text")
-          .dropna(subset=["cleaned_text", "target"])
-    )
+    df = df.withColumnRenamed("sentiment", "target") \
+           .withColumnRenamed("text", "cleaned_text") \
+           .dropna(subset=["cleaned_text", "target"])
 
     df = df.withColumn(
         "target",
@@ -60,52 +50,34 @@ def main():
     # ===============================
     # CLEAN TEXT
     # ===============================
+    def clean(df):
+        return (df
+            .withColumn("cleaned_text", lower(col("cleaned_text")))
+            .withColumn("cleaned_text", regexp_replace(col("cleaned_text"), r"http\S+", ""))
+            .withColumn("cleaned_text", regexp_replace(col("cleaned_text"), r"@\w+", ""))
+            .withColumn("cleaned_text", regexp_replace(col("cleaned_text"), r"[^a-zA-Z\s]", ""))
+            .withColumn("cleaned_text", regexp_replace(col("cleaned_text"), r"\s+", " "))
+        )
 
-    df = df.withColumn("cleaned_text", lower(col("cleaned_text")))
-    df = df.withColumn("cleaned_text", regexp_replace(
-        col("cleaned_text"), r"http\S+", ""))
-    df = df.withColumn("cleaned_text", regexp_replace(
-        col("cleaned_text"), r"@\w+", ""))
-    df = df.withColumn("cleaned_text", regexp_replace(
-        col("cleaned_text"), r"[^a-zA-Z\s]", ""))
-    df = df.withColumn("cleaned_text", regexp_replace(
-        col("cleaned_text"), r"\s+", " "))
+    df = clean(df)
 
-    # ===============================
-    # LOAD VALIDATION DATA
-    # ===============================
+    val_df = spark.read.csv(validation_path, header=False, inferSchema=True) \
+        .toDF("id", "entity", "sentiment", "text")
 
-    val_df = spark.read.csv(
-        validation_path,
-        header=False,
-        inferSchema=True
-    ).toDF("id", "entity", "sentiment", "text")
-
-    val_df = (
-        val_df.withColumnRenamed("sentiment", "target")
-              .withColumnRenamed("text", "cleaned_text")
-              .dropna(subset=["cleaned_text", "target"])
-    )
+    val_df = val_df.withColumnRenamed("sentiment", "target") \
+                   .withColumnRenamed("text", "cleaned_text") \
+                   .dropna(subset=["cleaned_text", "target"])
 
     val_df = val_df.withColumn(
         "target",
         when(col("target") == "Irrelevant", "Neutral").otherwise(col("target"))
     )
 
-    val_df = val_df.withColumn("cleaned_text", lower(col("cleaned_text")))
-    val_df = val_df.withColumn("cleaned_text", regexp_replace(
-        col("cleaned_text"), r"http\S+", ""))
-    val_df = val_df.withColumn("cleaned_text", regexp_replace(
-        col("cleaned_text"), r"@\w+", ""))
-    val_df = val_df.withColumn("cleaned_text", regexp_replace(
-        col("cleaned_text"), r"[^a-zA-Z\s]", ""))
-    val_df = val_df.withColumn("cleaned_text", regexp_replace(
-        col("cleaned_text"), r"\s+", " "))
+    val_df = clean(val_df)
 
     # ===============================
-    # LABEL INDEXING
+    # LABELS
     # ===============================
-
     label_indexer = StringIndexer(
         inputCol="target",
         outputCol="label_indexed",
@@ -123,81 +95,43 @@ def main():
     )
 
     # ===============================
-    # FEATURE PIPELINE
+    # PIPELINE
     # ===============================
-
-    tokenizer = Tokenizer(
-        inputCol="cleaned_text",
-        outputCol="tokens"
-    )
-
-    remover = StopWordsRemover(
-        inputCol="tokens",
-        outputCol="filtered_tokens"
-    )
-
-    vectorizer = CountVectorizer(
-        inputCol="filtered_tokens",
-        outputCol="raw_features",
-        vocabSize=5000,
-        minDF=5
-    )
-
-    idf = IDF(
-        inputCol="raw_features",
-        outputCol="features"
-    )
-
-    lr = LogisticRegression(
-        featuresCol="features",
-        labelCol="label_indexed",
-        maxIter=20,
-        regParam=0.01
-    )
-
     pipeline = Pipeline(stages=[
-        tokenizer,
-        remover,
-        vectorizer,
-        idf,
-        lr,
+        Tokenizer(inputCol="cleaned_text", outputCol="tokens"),
+        StopWordsRemover(inputCol="tokens", outputCol="filtered_tokens"),
+        CountVectorizer(inputCol="filtered_tokens", outputCol="raw_features"),
+        IDF(inputCol="raw_features", outputCol="features"),
+        LogisticRegression(featuresCol="features", labelCol="label_indexed"),
         label_converter
     ])
 
     # ===============================
     # TRAIN
     # ===============================
-
     print("Training model...")
     model = pipeline.fit(df)
-    print("Model training complete.")
+    print("Training complete")
 
     # ===============================
     # EVALUATE
     # ===============================
-
     predictions = model.transform(val_df)
 
     evaluator = MulticlassClassificationEvaluator(
         labelCol="label_indexed",
-        predictionCol="prediction",
-        metricName="accuracy"
+        predictionCol="prediction"
     )
 
-    accuracy = evaluator.evaluate(predictions)
-    f1 = evaluator.setMetricName("f1").evaluate(predictions)
-
-    print(f"Validation Accuracy: {accuracy:.4f}")
-    print(f"Validation F1 Score: {f1:.4f}")
+    print(f"Accuracy: {evaluator.evaluate(predictions, {evaluator.metricName: 'accuracy'}):.4f}")
+    print(f"F1 Score: {evaluator.evaluate(predictions, {evaluator.metricName: 'f1'}):.4f}")
 
     # ===============================
-    # SAVE MODEL (CORRECT WAY)
+    # SAVE (CRITICAL FIX)
     # ===============================
-
-    print(f"Saving model to {model_output_path}")
+    print("Saving model...")
     model.write().overwrite().save(model_output_path)
-
-    print("Model saved successfully.")
+    print("Model saved successfully!")
 
     spark.stop()
 
